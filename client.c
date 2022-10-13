@@ -6,34 +6,104 @@
 #include <strings.h> // bzero()
 #include <sys/socket.h>
 #include <unistd.h> // read(), write(), close()
+#include <ctype.h>
+#include <time.h>
 #define MAX 80
 #define PORT 8080
 #define SA struct sockaddr
-void func(int sockfd)
+
+void send_message(){
+    printf("message");
+}
+
+void func(int sockfd, int max_time, int rate)
 {
-    char buff[MAX];
-    int n;
-    for (;;) {
-        bzero(buff, sizeof(buff));
-        printf("Enter the string : ");
-        n = 0;
-        while ((buff[n++] = getchar()) != '\n')
-            ;
-        write(sockfd, buff, sizeof(buff));
-        bzero(buff, sizeof(buff));
-        read(sockfd, buff, sizeof(buff));
-        printf("From Server : %s", buff);
-        if ((strncmp(buff, "exit", 4)) == 0) {
-            printf("Client Exit...\n");
-            break;
+    int count = 0;
+    time_t begin = time(NULL);
+    time_t sec;
+    sec = time(NULL);
+    time_t test;
+    test = time(NULL);
+    int clac = 0;
+    while(begin - time(NULL) < max_time){
+        if(clac == 1){
+            while(count < rate){
+                send_message();
+                count++;
+            }clac = 0;
+        }if(sec - time(NULL) != 0){
+            clac = 1;
         }
     }
+    // char buff[MAX];
+    // int n;
+    // // infinite loop for chat
+    // for (;;) {
+    //     bzero(buff, MAX);
+   
+    //     // read the message from client and copy it in buffer
+    //     read(connfd, buff, sizeof(buff));
+    //     // print buffer which contains the client contents
+    //     printf("From client: %s\t To client : ", buff);
+    //     bzero(buff, MAX);
+    //     n = 0;
+    //     // copy server message in the buffer
+    //     while ((buff[n++] = getchar()) != '\n')
+    //         ;
+   
+    //     // and send that buffer to client
+    //     write(connfd, buff, sizeof(buff));
+   
+    //     // if msg contains "Exit" then server exit and chat ended.
+    //     if (strncmp("exit", buff, 4) == 0) {
+    //         printf("Server Exit...\n");
+    //         break;
+    //     }
+    // }
 }
  
-int main()
+int main(int argc, char** argv)
 {
+    //printf("opt");
+    int opt;
+
+    int size;
+    int rate;
+    int time;
+
+    while ((opt = getopt(argc, argv, ":k:r:t:?")) != -1) {
+        switch (opt) {
+        case 'k':
+            size = atoi(optarg);
+            //size = (int)*optarg;
+            break;
+        case 'r':
+            rate = atoi(optarg);
+            //rate = (int)*optarg;
+            break;
+        case 't':
+            time = atoi(optarg);
+            //time = (int)*optarg;
+            //sscanf(optarg, "%d", time);
+            break;
+        default:
+            printf("erreur\n");
+            break;
+        }
+
+    }
+
+    char* str = malloc(strlen(argv[argc-1]));
+    strcpy(str, argv[argc - 1]);
+    printf("last arg is : %s\n", str);
+    printf("the size is : %d, the rate is : %d, and the time is : %d\n", size, rate, time);
+
+    
+
     int sockfd, connfd;
     struct sockaddr_in servaddr, cli;
+
+    func(sockfd, time, rate);
  
     // socket create and verification
     sockfd = socket(AF_INET, SOCK_STREAM, 0);
@@ -60,8 +130,10 @@ int main()
         printf("connected to the server..\n");
  
     // function for chat
-    func(sockfd);
+    
  
     // close the socket
     close(sockfd);
+
+    free(str);
 }
