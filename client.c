@@ -13,27 +13,38 @@
 #define SA struct sockaddr
 
 void send_message(){
-    printf("message");
+    printf("message\n");
 }
 
 void func(int sockfd, int max_time, int rate)
 {
     int count = 0;
     time_t begin = time(NULL);
+    double beg = begin;
+    printf("beg : %ld\n", beg);
+    time_t maximum = max_time;
     time_t sec;
     sec = time(NULL);
     time_t test;
     test = time(NULL);
     int clac = 0;
-    while(begin - time(NULL) < max_time){
+    int i = 0;
+    printf("maximum : %ld\n", maximum);
+    while(begin - time(NULL) < maximum){
+        time_t temp = difftime(time(NULL), begin);
+        printf("difference : %ld\n", temp);
+        printf("begin : %ld\n", begin);
+        printf("time actuel : %ld\n", time(NULL));
         if(clac == 1){
             while(count < rate){
-                send_message();
+                //send_message();
                 count++;
             }clac = 0;
         }if(sec - time(NULL) != 0){
             clac = 1;
-        }
+            count = 0;
+        }i++;
+        if(i == 1000) break;
     }
     // char buff[MAX];
     // int n;
