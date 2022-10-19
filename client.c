@@ -13,7 +13,7 @@
 #define SA struct sockaddr
 
 void send_message(int sockfd){
-    write(sockfd, "Hello", 5);
+    write(sockfd, "Hello\n", 5);
 }
 
 void func(int sockfd, int max_time, int rate)
