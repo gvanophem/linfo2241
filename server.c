@@ -8,9 +8,27 @@
 #include <unistd.h> // read(), write(), close()
 #include <ctype.h>
 #include <time.h>
+#include <pthread.h>
+#include <limits.h>
+#include <stdbool.h>
 #define MAX 80
 #define PORT 8080
-#define SA struct sockaddr
+//#define SA struct sockaddr
+
+#define SERVERPORT 8080
+#define BUFSIZE 50//todo
+#define THREAD_POOL_SIZE 20
+#define SERVER_BACKLOG 100
+ 
+pthread_t thread_pool[THREAD_POOL_SIZE];
+pthread_mutex_t mutex = PTHREAD_MUTEX_INITIALIZER;
+ 
+typedef struct sockaddr_in SA_IN;
+typedef struct sockaddr SA;
+ 
+void* handle_connection(void* p_client_socket);
+int check(int exp, const char *msg);
+void* thread_func(void* arg);
 
 typedef struct {
 int m, n; // dimensions de la matrice
@@ -39,6 +57,38 @@ void free_matrix(matrix *mat) {
 matrix* encrypt(char*buff, matrix** files, int size){
     matrix* mat = allocate_matrix(size,size);
     return mat;
+}
+
+struct node {
+    struct node* next;
+    int *client_socket;
+};
+typedef struct node node_t;
+
+node_t* head = NULL;
+node_t* tail = NULL;
+
+void enqueue(int* client_socket){
+    node_t* new_node = malloc(sizeof(node_t));
+    new_node->client_socket = client_socket;
+    new_node->next = NULL;
+    if(tail == NULL){
+        head = new_node;
+    }else{
+        tail->next = new_node;
+    }tail = new_node;
+}
+
+int* dequeue(){
+    if(head == NULL) return NULL;
+    else{
+        int* result = head->client_socket;
+        node_t* temp = head;
+        head = head->next;
+        if(head == NULL) tail = NULL;
+        free(temp);
+        return result;
+    }
 }
    
 // Function designed for chat between client and server.
@@ -86,7 +136,49 @@ void func(int connfd, int size, matrix** files)
         // }
     }
 }
-   
+
+int check(int err, const char *msg){
+    if(err == -1){
+        perror(msg);
+        exit(1);
+    }    
+    return err;
+}
+ 
+ 
+void* thread_func(void *arg) {
+    while (true)
+    {
+        int* client;
+        pthread_mutex_lock(&mutex);
+        client = dequeue();
+        pthread_mutex_unlock(&mutex);
+ 
+        if(client != NULL){
+            handle_connection(client); 
+        }
+    }
+ 
+}
+ 
+void* handle_connection(void* client_socket){
+    char buffer[BUFSIZE];
+    size_t bytes_read;
+    int msgsize = 0;
+    while((bytes_read = read((int*)client_socket, buffer+msgsize, sizeof(buffer)-msgsize-1)) > 0){
+        msgsize+= bytes_read;
+        if(msgsize > BUFSIZE -1 || buffer[msgsize-1] == '\n'){
+            break;
+        }
+    }check(bytes_read, "recv error");
+    buffer[msgsize-1] = 0;
+    printf("Request : %s\n", buffer);
+
+
+    return 0;
+}
+
+
 // Driver function
 int main(int argc, char** argv)
 {
@@ -132,6 +224,11 @@ int main(int argc, char** argv)
 
     int sockfd, connfd, len;
     struct sockaddr_in servaddr, cli;
+
+    for (int i = 0; i < THREAD_POOL_SIZE; i++)
+    {
+        pthread_create(&thread_pool[i], NULL, thread_func, NULL);
+    }
    
     // socket create and verification
     sockfd = socket(AF_INET, SOCK_STREAM, 0);
@@ -164,6 +261,24 @@ int main(int argc, char** argv)
     else
         printf("Server listening..\n");
     len = sizeof(cli);
+
+    int client_socket, addr_size;
+
+    while (true)
+    {
+        printf("Waiting for connections...\n");
+ 
+        addr_size = sizeof(SA_IN);
+        check(client_socket = accept(sockfd, (SA*)&client_addr, (socklen_t*)&addr_size),"accept failed");
+        printf("Client connected\n");
+ 
+        int* client = malloc(sizeof(int));
+        *client = client_socket;
+        pthread_mutex_lock(&mutex);
+        enqueue(client);
+        pthread_mutex_unlock(&mutex);
+ 
+    }
    
     // Accept the data packet from client and verification
     connfd = accept(sockfd, (SA*)&cli, &len);
@@ -175,7 +290,7 @@ int main(int argc, char** argv)
         printf("server accept the client...\n");
    
     // Function for chatting between client and server
-    func(connfd, size, files);
+    //func(connfd, size, files);
    
     // After chatting close the socket
     close(sockfd);
