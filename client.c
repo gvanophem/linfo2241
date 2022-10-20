@@ -55,7 +55,7 @@ int main(int argc, char** argv)
 
     int size;
     int rate;
-    int time;
+    int max_time;
 
     while ((opt = getopt(argc, argv, ":k:r:t:?")) != -1) {
         switch (opt) {
@@ -66,7 +66,7 @@ int main(int argc, char** argv)
             rate = atoi(optarg);
             break;
         case 't':
-            time = atoi(optarg);
+            max_time = atoi(optarg);
             break;
         default:
             break;
@@ -77,7 +77,7 @@ int main(int argc, char** argv)
     char* str = malloc(strlen(argv[argc-1]));
     strcpy(str, argv[argc - 1]);
     printf("last arg is : %s\n", str);
-    printf("the size is : %d, the rate is : %d, and the time is : %d\n", size, rate, time);
+    printf("the size is : %d, the rate is : %d, and the time is : %d\n", size, rate, max_time);
 
     char* token = strtok(str, ":");
     char* address = malloc(sizeof(char)*strlen(token));
@@ -103,8 +103,8 @@ int main(int argc, char** argv)
  
     // assign IP, PORT
     servaddr.sin_family = AF_INET;
-    servaddr.sin_addr.s_addr = inet_addr("127.0.0.1");
-    servaddr.sin_port = htons(PORT);
+    servaddr.sin_addr.s_addr = inet_addr(address);
+    servaddr.sin_port = htons(atoi(port));
  
     // connect the client socket to server socket
     if (connect(sockfd, (SA*)&servaddr, sizeof(servaddr))
@@ -121,6 +121,28 @@ int main(int argc, char** argv)
  
     // close the socket
     close(sockfd);
+
+    //boucle while pour lancer pleins de fois
+    int count = 0;
+    time_t begin = time(NULL);
+    double beg = begin;
+    time_t sec;
+    sec = time(NULL);
+    int clac = 1;
+    int i = 0;
+    while(difftime(time(NULL), begin) < max_time){
+        if(clac == 1){
+            while(count < rate){
+                send_message(sockfd);
+                count++;
+                i++;
+            }clac = 0;
+        }if(sec - time(NULL) != 0){
+            clac = 1;
+            count = 0;
+            sec = time(NULL);
+        }
+    }printf("%d message sent\n", i);
 
     free(str);
 }

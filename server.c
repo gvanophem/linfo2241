@@ -272,7 +272,7 @@ int main(int argc, char** argv)
     // assign IP, PORT
     servaddr.sin_family = AF_INET;
     servaddr.sin_addr.s_addr = htonl(INADDR_ANY);
-    servaddr.sin_port = htons(PORT);
+    servaddr.sin_port = htons(port);
    
     // Binding newly created socket to given IP and verification
     if ((bind(sockfd, (SA*)&servaddr, sizeof(servaddr))) != 0) {
@@ -308,19 +308,5 @@ int main(int argc, char** argv)
         pthread_mutex_unlock(&mutex);
  
     }
-   
-    // Accept the data packet from client and verification
-    // connfd = accept(sockfd, (SA*)&cli, &len);
-    // if (connfd < 0) {
-    //     printf("server accept failed...\n");
-    //     exit(0);
-    // }
-    // else
-    //     printf("server accept the client...\n");
-   
-    // Function for chatting between client and server
-    //func(connfd, size, files);
-   
-    // After chatting close the socket
     close(sockfd);
 }
