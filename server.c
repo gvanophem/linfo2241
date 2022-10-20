@@ -19,6 +19,17 @@
 #define BUFSIZE 50//todo
 #define THREAD_POOL_SIZE 20
 #define SERVER_BACKLOG 100
+
+typedef struct {
+int m, n; // dimensions de la matrice
+	int *data; // tableau 1D de taille m*n contenant les entrées de la matrice
+	int **a; // tableau 1D de m pointeurs vers chaque ligne, pour pouvoir appeler a[i][j]
+} matrix;
+
+typedef struct args{
+    int size;
+    matrix** files;
+}args_t;
  
 pthread_t thread_pool[THREAD_POOL_SIZE];
 pthread_mutex_t mutex = PTHREAD_MUTEX_INITIALIZER;
@@ -26,15 +37,9 @@ pthread_mutex_t mutex = PTHREAD_MUTEX_INITIALIZER;
 typedef struct sockaddr_in SA_IN;
 typedef struct sockaddr SA;
  
-void* handle_connection(void* p_client_socket);
+void* handle_connection(void* client_socket, matrix** files, int size);
 int check(int exp, const char *msg);
-void* thread_func(void* arg);
-
-typedef struct {
-int m, n; // dimensions de la matrice
-	int *data; // tableau 1D de taille m*n contenant les entrées de la matrice
-	int **a; // tableau 1D de m pointeurs vers chaque ligne, pour pouvoir appeler a[i][j]
-} matrix;
+void* thread_func(void *arg);
 
 matrix* allocate_matrix(int m, int n) {
 	matrix *mat = (matrix*) malloc(sizeof(matrix));
@@ -147,6 +152,7 @@ int check(int err, const char *msg){
  
  
 void* thread_func(void *arg) {
+    args_t* arguments = (args_t*)arg;
     while (true)
     {
         int* client;
@@ -155,25 +161,44 @@ void* thread_func(void *arg) {
         pthread_mutex_unlock(&mutex);
  
         if(client != NULL){
-            handle_connection(client); 
+            printf("starting to handle the connection\n");
+            handle_connection(client, arguments->files, arguments->size); 
         }
     }
+    printf("thread function ok\n");
  
 }
  
-void* handle_connection(void* client_socket){
+void* handle_connection(void* client_socket, matrix** files, int size){
     char buffer[BUFSIZE];
     size_t bytes_read;
     int msgsize = 0;
-    while((bytes_read = read((int*)client_socket, buffer+msgsize, sizeof(buffer)-msgsize-1)) > 0){
+    while((bytes_read = read(*((int*)client_socket), buffer+msgsize, sizeof(buffer)-msgsize-1)) > 0){
         msgsize+= bytes_read;
         if(msgsize > BUFSIZE -1 || buffer[msgsize-1] == '\n'){
             break;
         }
-    }check(bytes_read, "recv error");
-    buffer[msgsize-1] = 0;
+    }buffer[msgsize-1] = 0;
     printf("Request : %s\n", buffer);
+    printf("msg size : %d\n", msgsize);
 
+    //buffer contains the message. Now let's encrypt this message
+
+    matrix* encrypted = encrypt(buffer, files, size);
+
+    char* msg = (char*)malloc(sizeof(char)*size+5);
+    int index = 0;
+    msg[index] = '0';
+    index++;
+    int tm = size+5;
+
+    char* sent_size = (char*)&tm;
+    memcpy(&msg[index], sent_size, 4);
+    index += 4;
+    memcpy(&msg[index], (char*)encrypted->data, size);
+
+    //and send this message
+    write(*((int*)client_socket), "Hello you", 10);
 
     return 0;
 }
@@ -223,11 +248,15 @@ int main(int argc, char** argv)
     }
 
     int sockfd, connfd, len;
-    struct sockaddr_in servaddr, cli;
+    SA_IN servaddr, client_addr;
+
+    args_t* arguments = malloc(sizeof(args_t));
+    arguments->files = files;
+    arguments->size = size;
 
     for (int i = 0; i < THREAD_POOL_SIZE; i++)
     {
-        pthread_create(&thread_pool[i], NULL, thread_func, NULL);
+        pthread_create(&thread_pool[i], NULL, thread_func, (void*)arguments);
     }
    
     // socket create and verification
@@ -260,7 +289,7 @@ int main(int argc, char** argv)
     }
     else
         printf("Server listening..\n");
-    len = sizeof(cli);
+    len = sizeof(client_addr);
 
     int client_socket, addr_size;
 
@@ -281,13 +310,13 @@ int main(int argc, char** argv)
     }
    
     // Accept the data packet from client and verification
-    connfd = accept(sockfd, (SA*)&cli, &len);
-    if (connfd < 0) {
-        printf("server accept failed...\n");
-        exit(0);
-    }
-    else
-        printf("server accept the client...\n");
+    // connfd = accept(sockfd, (SA*)&cli, &len);
+    // if (connfd < 0) {
+    //     printf("server accept failed...\n");
+    //     exit(0);
+    // }
+    // else
+    //     printf("server accept the client...\n");
    
     // Function for chatting between client and server
     //func(connfd, size, files);

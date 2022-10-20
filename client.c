@@ -11,9 +11,10 @@
 #define MAX 80
 #define PORT 8080
 #define SA struct sockaddr
+#define BUFSIZE 10
 
 void send_message(int sockfd){
-    write(sockfd, "Hello\n", 5);
+    write(sockfd, "Hello\n", 6);
 }
 
 void func(int sockfd, int max_time, int rate)
@@ -40,9 +41,16 @@ void func(int sockfd, int max_time, int rate)
     }printf("%d message sent\n", i);
 }
  
+void my_func(int sockfd){
+    send_message(sockfd);
+    char buff[BUFSIZE];
+    bzero(buff, BUFSIZE);
+    read(sockfd, buff, BUFSIZE);
+    printf("From Server : %s\n", buff);
+}
+
 int main(int argc, char** argv)
 {
-    //printf("opt");
     int opt;
 
     int size;
@@ -53,19 +61,14 @@ int main(int argc, char** argv)
         switch (opt) {
         case 'k':
             size = atoi(optarg);
-            //size = (int)*optarg;
             break;
         case 'r':
             rate = atoi(optarg);
-            //rate = (int)*optarg;
             break;
         case 't':
             time = atoi(optarg);
-            //time = (int)*optarg;
-            //sscanf(optarg, "%d", time);
             break;
         default:
-            printf("erreur\n");
             break;
         }
 
@@ -114,7 +117,7 @@ int main(int argc, char** argv)
  
     // function for chat
 
-    func(sockfd, time, rate);
+    my_func(sockfd);
  
     // close the socket
     close(sockfd);
