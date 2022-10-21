@@ -15,16 +15,16 @@
 
 typedef struct {
 int m, n; // dimensions de la matrice
-	char *data; // tableau 1D de taille m*n contenant les entrées de la matrice
-	char **a; // tableau 1D de m pointeurs vers chaque ligne, pour pouvoir appeler a[i][j]
+	int *data; // tableau 1D de taille m*n contenant les entrées de la matrice
+	int **a; // tableau 1D de m pointeurs vers chaque ligne, pour pouvoir appeler a[i][j]
 } matrix;
 
 matrix* allocate_matrix(int m, int n) {
 	matrix *mat = (matrix*) malloc(sizeof(matrix));
 	mat->m = m, mat->n = n;
-	mat->data = (char*)malloc(m*n*sizeof(char));
+	mat->data = (int*)malloc(m*n*sizeof(int));
 	if(mat->data == NULL) return NULL;
-	mat->a = (char**)malloc(m*sizeof(char*));
+	mat->a = (int**)malloc(m*sizeof(int*));
 	if (mat->a == NULL) return NULL;
 	for (int i = 0; i < m; i++)
 		mat->a[i] = mat->data+i*n;
@@ -52,7 +52,7 @@ void send_message(int sockfd, int size){
     matrix* key = allocate_matrix(size,size);
     for (int i = 0; i < size*size; i++)
     {
-        key->data[i] = (char) rand()%128;
+        key->data[i] = rand()%256;
     }
     char* msg = malloc(size * size + 8);
     int written_bytes = 0;
@@ -63,11 +63,11 @@ void send_message(int sockfd, int size){
     char length[4];
     sprintf(length, "%d", size);
     memcpy(&msg[written_bytes], length, 4); written_bytes += 4;
-    char* val = malloc(sizeof(char));
+    char* val = malloc(sizeof(int));
     for(int i = 0; i < size * size; i++){
-        sprintf(val, "%c", key->data[i]);
-        memcpy(&msg[written_bytes], val, 1);
-        written_bytes += 1;
+        sprintf(val, "%d", key->data[i]);
+        memcpy(&msg[written_bytes], val, 4);
+        written_bytes += 4;
     }
     for(int i = 0; i < size; i++){
         for(int j = 0; j < size; j++){
@@ -75,15 +75,15 @@ void send_message(int sockfd, int size){
         }printf("\n");
     }printf("strlen(msg) : %d\n", strlen(msg));
     for(int i = 0; i < size*size+2; i+=1){
-        char sub;
-        memcpy(&sub, &msg[i], 1);
-        printf("%d ", (char)atoi(&sub));
+        char sub[5];
+        memcpy(sub, &msg[i*4], 4);
+        printf("%d ", (uint32_t)atoi(sub));
     }
     printf("ind : %d\n",ind);
 
     printf("%s",msg); printf("\n");
     //write(sockfd, msg, size*size + 8);
-    send(sockfd, msg, size * size + 8, 0);
+    send(sockfd, msg, 4 * (size * size) + 8, 0);
     printf("%s",msg); printf("\n");
 
 }

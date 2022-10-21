@@ -22,8 +22,8 @@
 
 typedef struct {
 int m, n; // dimensions de la matrice
-	char *data; // tableau 1D de taille m*n contenant les entrées de la matrice
-	char **a; // tableau 1D de m pointeurs vers chaque ligne, pour pouvoir appeler a[i][j]
+	int *data; // tableau 1D de taille m*n contenant les entrées de la matrice
+	int **a; // tableau 1D de m pointeurs vers chaque ligne, pour pouvoir appeler a[i][j]
 } matrix;
 
 typedef struct args{
@@ -44,9 +44,9 @@ void* thread_func(void *arg);
 matrix* allocate_matrix(int m, int n) {
 	matrix *mat = (matrix*) malloc(sizeof(matrix));
 	mat->m = m, mat->n = n;
-	mat->data = (char*)malloc(m*n*sizeof(char));
+	mat->data = (int*)malloc(m*n*sizeof(int));
 	if(mat->data == NULL) return NULL;
-	mat->a = (char**)malloc(m*sizeof(char*));
+	mat->a = (int**)malloc(m*sizeof(int*));
 	if (mat->a == NULL) return NULL;
 	for (int i = 0; i < m; i++)
 		mat->a[i] = mat->data+i*n;
@@ -63,7 +63,7 @@ void print_matrix(matrix* m, int dim){
     for (int i = 0; i < dim; i++){
         for (int j = 0; j < dim; j++)
         {
-            printf("%s  ",m->a[i][j]);
+            printf("%d  ",m->a[i][j]);
         }
         printf("\n");
     }
@@ -77,11 +77,11 @@ int mult_sub_matrix(matrix* key, matrix* file, matrix* encrypted, int N, int iCo
             int sum = 0;
             for (int pos = 0; pos < N; pos++)
             {
-                sum += (int)key->a[i][pos] * (int)file->a[pos+iCoord][j+jCoord];
+                sum += key->a[i][pos] * file->a[pos+iCoord][j+jCoord];
                 //printf("multiplied key[%d][%d] with file[%d][%d] \n", i,pos,pos+iCoord,j+jCoord);
             }
             //printf("put the sum into encrypted[%d][%d] \n",i+iCoord,j+jCoord);
-            encrypted->a[i+iCoord][j+jCoord] = (char) sum%128;
+            encrypted->a[i+iCoord][j+jCoord] = sum;
         }
     }
 }
@@ -106,14 +106,14 @@ matrix* encrypt(char* buf, matrix** files, int size){
     matrix* key = allocate_matrix(N,N);
     for (int i = 0; i < N*N; i++)
     {
-        key->data[i] = substr(buf,i+8,1)[0];
+        key->data[i] = atoi(substr(buf,i+8,1));
     }
  
     //print_matrix(key,N);
  
     matrix* encrypted = allocate_matrix(size,size);
     for (int i = 0; i < size; i+=N){
-        for (int j = 0; j < size; j+=N){ 
+        for (int j = 0; j < size; j+=N){  //check these loops, not sure
             mult_sub_matrix(key, files[index],encrypted,N,i,j);
         }
     }
@@ -152,6 +152,36 @@ int* dequeue(){
     }
 }
    
+// Function designed for chat between client and server.
+void func(int connfd, int size, matrix** files)
+{
+    char buff[size];
+    int n;
+    // infinite loop for chat
+    for (int i = 0; i < 20; i++) {
+        bzero(buff, size);
+   
+        // read the message from client and copy it in buffer
+        read(connfd, buff, sizeof(buff));
+        // print buffer which contains the client contents
+        printf("From client: %s\n", buff);
+
+        matrix* encrypted = encrypt(buff, files, size);
+
+        char* msg = (char*)malloc(sizeof(char)*size+5);
+        int index = 0;
+        msg[index] = '0';
+        index++;
+        int tm = size+5;
+
+        char* sent_size = (char*)&tm;
+        memcpy(&msg[index], sent_size, 4);
+        index += 4;
+        memcpy(&msg[index], (char*)encrypted->data, size);
+
+        write(connfd, msg, size+5);
+    }
+}
 
 int check(int err, const char *msg){
     if(err == -1){
@@ -177,6 +207,7 @@ void* thread_func(void *arg) {
         }
     }
     printf("thread function ok\n");
+ 
 }
  
 void* handle_connection(void* client_socket, matrix** files, int size){
@@ -189,10 +220,10 @@ void* handle_connection(void* client_socket, matrix** files, int size){
             break;
         }
     }buffer[msgsize-1] = 0;
-    for(int i = 0; i < size * size + 2; i++){
-        char sub;
-        memcpy(&sub, &buffer[i], 1);
-        printf("%d ", sub);
+    for(int i = 0; i < 4*(size * size) + 2; i++){
+        char sub[5];
+        memcpy(sub, &buffer[i*4], 4);
+        printf("%s ", sub);
     }
 
     printf("Request : %s\n", buffer);
@@ -255,7 +286,7 @@ int main(int argc, char** argv)
         files[i] = allocate_matrix(size,size);
         for (int j = 0; j < size*size; j++)
         {
-            files[i]->data[j] = (char) rand()%128;
+            files[i]->data[j] = rand()%256;
         }
     }
 
