@@ -16,7 +16,7 @@
 //#define SA struct sockaddr
 
 #define SERVERPORT 8080
-#define BUFSIZE 50//todo
+#define BUFSIZE 73//todo
 #define THREAD_POOL_SIZE 20
 #define SERVER_BACKLOG 100
 
@@ -59,9 +59,65 @@ void free_matrix(matrix *mat) {
 	free(mat->data);       
 }
 
-matrix* encrypt(char*buff, matrix** files, int size){
-    matrix* mat = allocate_matrix(size,size);
-    return mat;
+void print_matrix(matrix* m, int dim){
+    for (int i = 0; i < dim; i++){
+        for (int j = 0; j < dim; j++)
+        {
+            printf("%d  ",m->a[i][j]);
+        }
+        printf("\n");
+    }
+}
+ 
+ 
+// iCoord and jCoord are the coordinates of the first element of the submatrix
+int mult_sub_matrix(matrix* key, matrix* file, matrix* encrypted, int N, int iCoord, int jCoord) {
+    for (int i = 0; i < N; i++){
+        for (int j = 0; j < N; j++){
+            int sum = 0;
+            for (int pos = 0; pos < N; pos++)
+            {
+                sum += key->a[i][pos] * file->a[pos+iCoord][j+jCoord];
+                //printf("multiplied key[%d][%d] with file[%d][%d] \n", i,pos,pos+iCoord,j+jCoord);
+            }
+            //printf("put the sum into encrypted[%d][%d] \n",i+iCoord,j+jCoord);
+            encrypted->a[i+iCoord][j+jCoord] = sum;
+        }
+    }
+}
+ 
+char* substr(char* src, int start, int len){
+    char* sub = (char*)malloc(len+1);
+    if(sub==NULL) printf("bug\n");
+    memcpy(sub, &src[start], len);
+    sub[len] = '\0';
+    return sub;
+}
+ 
+matrix* encrypt(char* buf, matrix** files, int size){
+    int index = atoi(substr(buf,0,4));
+    int N  = atoi(substr(buf,4,4));
+ 
+    printf(substr(buf,4,4));
+ 
+    printf("index = %d\n",index);
+    printf("N = %d\n",N);
+ 
+    matrix* key = allocate_matrix(N,N);
+    for (int i = 0; i < N*N; i++)
+    {
+        key->data[i] = atoi(substr(buf,i+8,1));
+    }
+ 
+    //print_matrix(key,N);
+ 
+    matrix* encrypted = allocate_matrix(size,size);
+    for (int i = 0; i < size; i+=N){
+        for (int j = 0; j < size; j+=N){  //check these loops, not sure
+            mult_sub_matrix(key, files[index],encrypted,N,i,j);
+        }
+    }
+    return encrypted;
 }
 
 struct node {
@@ -124,21 +180,6 @@ void func(int connfd, int size, matrix** files)
         memcpy(&msg[index], (char*)encrypted->data, size);
 
         write(connfd, msg, size+5);
-
-        // bzero(buff, MAX);
-        // n = 0;
-        // // copy server message in the buffer
-        // while ((buff[n++] = getchar()) != '\n')
-        //     ;
-   
-        // // and send that buffer to client
-        // write(connfd, buff, sizeof(buff));
-   
-        // // if msg contains "Exit" then server exit and chat ended.
-        // if (strncmp("exit", buff, 4) == 0) {
-        //     printf("Server Exit...\n");
-        //     break;
-        // }
     }
 }
 
@@ -170,15 +211,21 @@ void* thread_func(void *arg) {
 }
  
 void* handle_connection(void* client_socket, matrix** files, int size){
-    char buffer[BUFSIZE];
+    char buffer[size * size + 8];
     size_t bytes_read;
     int msgsize = 0;
     while((bytes_read = read(*((int*)client_socket), buffer+msgsize, sizeof(buffer)-msgsize-1)) > 0){
         msgsize+= bytes_read;
-        if(msgsize > BUFSIZE -1 || buffer[msgsize-1] == '\n'){
+        if(msgsize > size * size + 8 -1 || buffer[msgsize-1] == '\n'){
             break;
         }
     }buffer[msgsize-1] = 0;
+    for(int i = 0; i < size * size + 2; i++){
+        char sub[5];
+        memcpy(sub, &buffer[i*4], 4);
+        printf("%s ", sub);
+    }
+
     printf("Request : %s\n", buffer);
     printf("msg size : %d\n", msgsize);
 
@@ -186,21 +233,19 @@ void* handle_connection(void* client_socket, matrix** files, int size){
 
     matrix* encrypted = encrypt(buffer, files, size);
 
-    char* msg = (char*)malloc(sizeof(char)*size+5);
+    char* msg = (char*)malloc(sizeof(char)*size*size+5);
     int index = 0;
     msg[index] = '0';
     index++;
-    int tm = size+5;
+    int tm = size*size+5;
 
     char* sent_size = (char*)&tm;
     memcpy(&msg[index], sent_size, 4);
     index += 4;
-    memcpy(&msg[index], (char*)encrypted->data, size);
+    memcpy(&msg[index], (char*)encrypted->data, size * size);
 
     //and send this message
-    write(*((int*)client_socket), "Hello you", 10);
-
-    close(*(int*)client_socket);
+    write(*((int*)client_socket), msg, size*size+5);
 
     return 0;
 }

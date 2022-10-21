@@ -13,11 +13,82 @@
 #define SA struct sockaddr
 #define BUFSIZE 11
 
-void send_message(int sockfd){
-    write(sockfd, "Hello\n", 6);
+typedef struct {
+int m, n; // dimensions de la matrice
+	int *data; // tableau 1D de taille m*n contenant les entrées de la matrice
+	int **a; // tableau 1D de m pointeurs vers chaque ligne, pour pouvoir appeler a[i][j]
+} matrix;
+
+matrix* allocate_matrix(int m, int n) {
+	matrix *mat = (matrix*) malloc(sizeof(matrix));
+	mat->m = m, mat->n = n;
+	mat->data = (int*)malloc(m*n*sizeof(int));
+	if(mat->data == NULL) return NULL;
+	mat->a = (int**)malloc(m*sizeof(int*));
+	if (mat->a == NULL) return NULL;
+	for (int i = 0; i < m; i++)
+		mat->a[i] = mat->data+i*n;
+	return mat;
+}
+ 
+void free_matrix(matrix *mat) {
+	if(mat == NULL) return;
+	free(mat->a);
+	free(mat->data);       
 }
 
-void func(int sock, int max_time, int rate, struct sockaddr_in serveraddr)
+char* substr(char* src, int start, int len){
+    printf("fdp\n");
+    printf("%d\n",sizeof(char)*(len+1));
+    char* sub = malloc(sizeof(char)*(len+1));
+    printf("bug\n");
+    memcpy(sub, &src[start], len);
+    sub[len] = '\0';
+    return sub;
+}
+
+void send_message(int sockfd, int size){
+    // generate key
+    matrix* key = allocate_matrix(size,size);
+    for (int i = 0; i < size*size; i++)
+    {
+        key->data[i] = rand()%256;
+    }
+    char* msg = malloc(size * size + 8);
+    int written_bytes = 0;
+    int ind = rand()%1000;
+    char index[4];
+    sprintf(index, "%d", ind);
+    memcpy(&msg[written_bytes], index, 4); written_bytes+= 4;
+    char length[4];
+    sprintf(length, "%d", size);
+    memcpy(&msg[written_bytes], length, 4); written_bytes += 4;
+    char* val = malloc(sizeof(int));
+    for(int i = 0; i < size * size; i++){
+        sprintf(val, "%d", key->data[i]);
+        memcpy(&msg[written_bytes], val, 4);
+        written_bytes += 4;
+    }
+    for(int i = 0; i < size; i++){
+        for(int j = 0; j < size; j++){
+            printf("%d ", key->data[i*size + j]);
+        }printf("\n");
+    }printf("strlen(msg) : %d\n", strlen(msg));
+    for(int i = 0; i < size*size+2; i+=1){
+        char sub[5];
+        memcpy(sub, &msg[i*4], 4);
+        printf("%d ", (uint32_t)atoi(sub));
+    }
+    printf("ind : %d\n",ind);
+
+    printf("%s",msg); printf("\n");
+    //write(sockfd, msg, size*size + 8);
+    send(sockfd, msg, size * size + 8, 0);
+    printf("%s",msg); printf("\n");
+
+}
+
+void func(int sockfd, int max_time, int rate, struct sockaddr_in serveraddr, int size)
 {
     int count = 0;
     time_t begin = time(NULL);
@@ -27,34 +98,34 @@ void func(int sock, int max_time, int rate, struct sockaddr_in serveraddr)
     int clac = 1;
     int i = 0;
 
-    char buffer[BUFSIZE];
+    char buffer[size*size + 5];
     size_t bytes_read;
     int msgsize = 0;
 
     while(difftime(time(NULL), begin) < max_time){
         if(clac == 1){
             while(count < rate){
-                int sockfd;
-                if((sockfd = socket(AF_INET, SOCK_STREAM, 0)) != 0){
-                    printf("socket creation failed\n");
-                    exit(0);
-                }if(connect(sockfd, (SA*)&serveraddr, sizeof(serveraddr)) != 0){
-                    printf("failed to connect\n");
-                    exit(0);
-                }
-                send_message(sockfd);
+                // int sockfd;
+                // if((sockfd = socket(AF_INET, SOCK_STREAM, 0)) != 0){
+                //     printf("socket creation failed\n");
+                //     exit(0);
+                // }if(connect(sockfd, (SA*)&serveraddr, sizeof(serveraddr)) != 0){
+                //     printf("failed to connect\n");
+                //     exit(0);
+                // }
+                send_message(sockfd,size);
                 count++;
                 i++;
                 while((bytes_read = read(sockfd, buffer+msgsize, sizeof(buffer)-msgsize-1)) > 0){
                     msgsize+= bytes_read;
-                    if(msgsize > BUFSIZE -1 || buffer[msgsize-1] == '\n'){
+                    if(msgsize > size * size + 5 -1 || buffer[msgsize-1] == '\n'){
                         break;
                     }
                 }buffer[msgsize-1] = 0;
                 printf("Request : %s\n", buffer);
                 printf("msg size : %d\n", msgsize);
                 msgsize = 0;
-                bytes_read= 0;
+                bytes_read = 0;
                 close(sockfd);
                 
             }clac = 0;
@@ -64,14 +135,6 @@ void func(int sock, int max_time, int rate, struct sockaddr_in serveraddr)
             sec = time(NULL);
         }
     }printf("%d message sent\n", i);
-}
- 
-void my_func(int sockfd){
-    send_message(sockfd);
-    char buff[BUFSIZE];
-    bzero(buff, BUFSIZE);
-    read(sockfd, buff, BUFSIZE);
-    printf("From Server : %s\n", buff);
 }
 
 int main(int argc, char** argv)
@@ -98,6 +161,7 @@ int main(int argc, char** argv)
         }
 
     }
+    
 
     char* str = malloc(strlen(argv[argc-1]));
     strcpy(str, argv[argc - 1]);
@@ -138,7 +202,7 @@ int main(int argc, char** argv)
  
     // function for chat
 
-    func(sockfd, max_time, rate, servaddr);
+    func(sockfd, max_time, rate, servaddr, size);
  
     // close the socket
     close(sockfd);
