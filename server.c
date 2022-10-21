@@ -200,6 +200,8 @@ void* handle_connection(void* client_socket, matrix** files, int size){
     //and send this message
     write(*((int*)client_socket), "Hello you", 10);
 
+    close(*(int*)client_socket);
+
     return 0;
 }
 
@@ -218,16 +220,12 @@ int main(int argc, char** argv)
         switch (opt) {
         case 'j':
             num_th = atoi(optarg);
-            //size = (int)*optarg;
             break;
         case 's':
             size = atoi(optarg);
-            //rate = (int)*optarg;
             break;
         case 'p':
             port = atoi(optarg);
-            //time = (int)*optarg;
-            //sscanf(optarg, "%d", time);
             break;
         default:
             printf("erreur\n");

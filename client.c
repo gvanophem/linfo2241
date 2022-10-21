@@ -11,13 +11,13 @@
 #define MAX 80
 #define PORT 8080
 #define SA struct sockaddr
-#define BUFSIZE 10
+#define BUFSIZE 11
 
 void send_message(int sockfd){
     write(sockfd, "Hello\n", 6);
 }
 
-void func(int sockfd, int max_time, int rate)
+void func(int sock, int max_time, int rate, struct sockaddr_in serveraddr)
 {
     int count = 0;
     time_t begin = time(NULL);
@@ -26,12 +26,37 @@ void func(int sockfd, int max_time, int rate)
     sec = time(NULL);
     int clac = 1;
     int i = 0;
+
+    char buffer[BUFSIZE];
+    size_t bytes_read;
+    int msgsize = 0;
+
     while(difftime(time(NULL), begin) < max_time){
         if(clac == 1){
             while(count < rate){
+                int sockfd;
+                if((sockfd = socket(AF_INET, SOCK_STREAM, 0)) != 0){
+                    printf("socket creation failed\n");
+                    exit(0);
+                }if(connect(sockfd, (SA*)&serveraddr, sizeof(serveraddr)) != 0){
+                    printf("failed to connect\n");
+                    exit(0);
+                }
                 send_message(sockfd);
                 count++;
                 i++;
+                while((bytes_read = read(sockfd, buffer+msgsize, sizeof(buffer)-msgsize-1)) > 0){
+                    msgsize+= bytes_read;
+                    if(msgsize > BUFSIZE -1 || buffer[msgsize-1] == '\n'){
+                        break;
+                    }
+                }buffer[msgsize-1] = 0;
+                printf("Request : %s\n", buffer);
+                printf("msg size : %d\n", msgsize);
+                msgsize = 0;
+                bytes_read= 0;
+                close(sockfd);
+                
             }clac = 0;
         }if(sec - time(NULL) != 0){
             clac = 1;
@@ -76,17 +101,13 @@ int main(int argc, char** argv)
 
     char* str = malloc(strlen(argv[argc-1]));
     strcpy(str, argv[argc - 1]);
-    printf("last arg is : %s\n", str);
-    printf("the size is : %d, the rate is : %d, and the time is : %d\n", size, rate, max_time);
-
+    
     char* token = strtok(str, ":");
     char* address = malloc(sizeof(char)*strlen(token));
     memcpy(address, token, strlen(token));
     token = strtok(NULL, ":");
     char* port = malloc(strlen(token));
     memcpy(port, token, strlen(token));
-    printf("token : %s\n", address);
-    printf("token[1] : %s\n", port);
 
     int sockfd, connfd;
     struct sockaddr_in servaddr, cli;
@@ -117,32 +138,12 @@ int main(int argc, char** argv)
  
     // function for chat
 
-    my_func(sockfd);
+    func(sockfd, max_time, rate, servaddr);
  
     // close the socket
     close(sockfd);
 
-    //boucle while pour lancer pleins de fois
-    int count = 0;
-    time_t begin = time(NULL);
-    double beg = begin;
-    time_t sec;
-    sec = time(NULL);
-    int clac = 1;
-    int i = 0;
-    while(difftime(time(NULL), begin) < max_time){
-        if(clac == 1){
-            while(count < rate){
-                send_message(sockfd);
-                count++;
-                i++;
-            }clac = 0;
-        }if(sec - time(NULL) != 0){
-            clac = 1;
-            count = 0;
-            sec = time(NULL);
-        }
-    }printf("%d message sent\n", i);
+    
 
     free(str);
 }
