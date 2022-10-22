@@ -13,6 +13,10 @@
 #define SA struct sockaddr
 #define BUFSIZE 11
 
+typedef struct args{
+    struct sockaddr_in server_addr;
+}args_t;
+
 typedef struct {
 int m, n; // dimensions de la matrice
 	unsigned char *data; // tableau 1D de taille m*n contenant les entrées de la matrice
@@ -172,9 +176,11 @@ void func(int sockfd, int max_time, int rate, struct sockaddr_in serveraddr, int
     }//printf("%d message sent\n", i);
 }
 
-void* thread_func(void* args){
-
-}
+// void* thread_func(void* args){
+//     int sockfd = socket(AF_INET, SOCK_STREAM, 0);
+//     args_t* arguments = (args_t*)args;
+//     struct sockaddr_in servaddr = arguments->server_addr;
+// }
 
 int main(int argc, char** argv)
 {
@@ -230,10 +236,13 @@ int main(int argc, char** argv)
     servaddr.sin_addr.s_addr = inet_addr(address);
     servaddr.sin_port = htons(atoi(port));
 
-    pthread_t thread_pool[4];
-    for(int i = 0; i < 4; i++){
-        phtread_create(&thread_pool[i], NULL, thread_func, NULL);
-    }
+    args_t* arguments = malloc(sizeof(args_t));
+    arguments->server_addr = servaddr;
+
+    // pthread_t thread_pool[4];
+    // for(int i = 0; i < 4; i++){
+    //     pthread_create(&thread_pool[i], NULL, thread_func, (void*)arguments);
+    // }
  
     // connect the client socket to server socket
     if (connect(sockfd, (SA*)&servaddr, sizeof(servaddr))
