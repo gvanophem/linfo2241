@@ -101,9 +101,6 @@ matrix* encrypt(unsigned char* buf, matrix** files, int size){
         exit(0);
     }
  
-    printf("index = %d\n",index);
-    printf("N : %d\n",N);
- 
     matrix* key = allocate_matrix(N,N);
     for (int i = 0; i < N*N; i++)
     {
@@ -177,7 +174,6 @@ void* thread_func(void *arg) {
             handle_connection(client, arguments->files, arguments->size); 
         }
     }
-    printf("thread function ok\n");
 }
  
 void* handle_connection(void* client_socket, matrix** files, int size){
@@ -195,14 +191,11 @@ void* handle_connection(void* client_socket, matrix** files, int size){
     memcpy(idx, &buffer[0], 4);
     char l[4];
     memcpy(l, &buffer[4], 4);
-    printf("Index : %s\n", idx);
-    printf("Length : %s\n", l);
     int N = atoi(l);
     for(int i = 0; i < N * N; i++){
         unsigned char sub;
         memcpy(&sub, &buffer[i + 8], 1);
-        printf("%d ", sub);
-    }printf("\n");
+    }
 
     // printf("Request : %s\n", buffer);
     // printf("msg size : %d\n", msgsize);
@@ -229,22 +222,11 @@ void* handle_connection(void* client_socket, matrix** files, int size){
         sprintf(&val, "%c",encrypted->data[i]);
         memcpy(&msg[index], &val, 1);
         index += 1;
-    }char err;
-    memcpy(&err, &msg[0], 1);
-    printf("error code : %c\n", err);
-    char length[4];
-    memcpy(length, &msg[1], 4);
-    printf("length : %d\n", atoi(length));
-    for(int i = 0; i < size*size; i++){
-        unsigned char sub;
-        memcpy(&sub, &msg[i + 5], 1);
-        printf("%d ", sub);
     }
 
     //and send this message
     //write(*((int*)client_socket), msg, size*size+5);
     send(*((int*)client_socket), msg, size*size+5, 0);
-    printf("message sended\n");
 
     return 0;
 }
