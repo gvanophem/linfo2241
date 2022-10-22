@@ -15,16 +15,16 @@
 
 typedef struct {
 int m, n; // dimensions de la matrice
-	char *data; // tableau 1D de taille m*n contenant les entrées de la matrice
-	char **a; // tableau 1D de m pointeurs vers chaque ligne, pour pouvoir appeler a[i][j]
+	unsigned char *data; // tableau 1D de taille m*n contenant les entrées de la matrice
+	unsigned char **a; // tableau 1D de m pointeurs vers chaque ligne, pour pouvoir appeler a[i][j]
 } matrix;
 
 matrix* allocate_matrix(int m, int n) {
 	matrix *mat = (matrix*) malloc(sizeof(matrix));
 	mat->m = m, mat->n = n;
-	mat->data = (char*)malloc(m*n*sizeof(char));
+	mat->data = (unsigned char*)malloc(m*n*sizeof(char));
 	if(mat->data == NULL) return NULL;
-	mat->a = (char**)malloc(m*sizeof(char*));
+	mat->a = (unsigned char**)malloc(m*sizeof(char*));
 	if (mat->a == NULL) return NULL;
 	for (int i = 0; i < m; i++)
 		mat->a[i] = mat->data+i*n;
@@ -37,6 +37,16 @@ void free_matrix(matrix *mat) {
 	free(mat->data);       
 }
 
+void print_matrix(matrix* m, int dim){
+    for (int i = 0; i < dim; i++){
+        for (int j = 0; j < dim; j++)
+        {
+            printf("%d  ",m->a[i][j]);
+        }
+        printf("\n");
+    }
+}
+
 char* substr(char* src, int start, int len){
     printf("fdp\n");
     printf("%d\n",sizeof(char)*(len+1));
@@ -47,16 +57,30 @@ char* substr(char* src, int start, int len){
     return sub;
 }
 
+char modulo(int random, int mod){
+    unsigned char c = random%mod;
+    if((int)c < 0){
+        c = (int)c + mod;
+    }
+    return c;
+}
+
 void send_message(int sockfd, int size){
     // generate key
     matrix* key = allocate_matrix(size,size);
+    srand(time(0));
     for (int i = 0; i < size*size; i++)
     {
-        key->data[i] = (char) rand()%128;
-    }
+        int random = rand();
+        //printf("%d ", random%256);
+        key->data[i] = (unsigned char)modulo(random, 256);
+        //printf("%d ", modulo(random, 256));
+        //sprintf(&key->data[i], "%c", rand()%256);
+    }print_matrix(key, size);
     char* msg = malloc(size * size + 8);
     int written_bytes = 0;
     int ind = rand()%1000;
+    printf("index %d\n", ind);
     char index[4];
     sprintf(index, "%d", ind);
     memcpy(&msg[written_bytes], index, 4); written_bytes+= 4;
@@ -68,23 +92,20 @@ void send_message(int sockfd, int size){
         sprintf(val, "%c", key->data[i]);
         memcpy(&msg[written_bytes], val, 1);
         written_bytes += 1;
-    }
-    for(int i = 0; i < size; i++){
-        for(int j = 0; j < size; j++){
-            printf("%d ", key->data[i*size + j]);
-        }printf("\n");
-    }printf("strlen(msg) : %d\n", strlen(msg));
-    for(int i = 0; i < size*size+2; i+=1){
-        char sub;
-        memcpy(&sub, &msg[i], 1);
-        printf("%d ", (char)atoi(&sub));
-    }
-    printf("ind : %d\n",ind);
+    }char* idx = malloc(4);
+    memcpy(idx, &msg[0], 4);
+    printf("index : %s\n", idx);
+    char l[4];
+    memcpy(l, &msg[4], 4);
+    printf("length : %s\n", l);
+    for(int i = 0; i < size*size; i++){
+        unsigned char sub;
+        memcpy(&sub, &msg[i + 8], 1);
+        printf("%d ", sub);
+    }printf("\n");
 
-    printf("%s",msg); printf("\n");
     //write(sockfd, msg, size*size + 8);
     send(sockfd, msg, size * size + 8, 0);
-    printf("%s",msg); printf("\n");
 
 }
 
@@ -98,9 +119,10 @@ void func(int sockfd, int max_time, int rate, struct sockaddr_in serveraddr, int
     int clac = 1;
     int i = 0;
 
-    char buffer[size*size + 5];
+    char* buffer = malloc(size*size);  //TO MODIFY
     size_t bytes_read;
     int msgsize = 0;
+    char N2[4];
 
     while(difftime(time(NULL), begin) < max_time){
         if(clac == 1){
@@ -120,10 +142,23 @@ void func(int sockfd, int max_time, int rate, struct sockaddr_in serveraddr, int
                     msgsize+= bytes_read;
                     if(msgsize > size * size + 5 -1 || buffer[msgsize-1] == '\n'){
                         break;
+                    }if(msgsize >= 5){
+                        memcpy(N2, &buffer[1], 4);
+                        buffer = realloc(buffer, 5+atoi(N2));
+                        break;
                     }
-                }buffer[msgsize-1] = 0;
-                printf("Request : %s\n", buffer);
-                printf("msg size : %d\n", msgsize);
+                }//buffer[msgsize-1] = 0;
+                recv(sockfd, &buffer[msgsize], atoi(N2) + 5 - msgsize,0);
+                char err;
+                memcpy(&err, &buffer[0], 1);
+                memcpy(N2, &buffer[1], 4);
+                printf("error code : %c\n", err);
+                printf("N*N = %d\n", atoi(N2));
+                for(int i = 0; i < atoi(N2); i++){
+                    unsigned char sub;
+                    memcpy(&sub, &buffer[i+5], 1);
+                    printf("%d ", sub);
+                }
                 msgsize = 0;
                 bytes_read = 0;
                 close(sockfd);
@@ -134,7 +169,7 @@ void func(int sockfd, int max_time, int rate, struct sockaddr_in serveraddr, int
             count = 0;
             sec = time(NULL);
         }
-    }printf("%d message sent\n", i);
+    }//printf("%d message sent\n", i);
 }
 
 int main(int argc, char** argv)

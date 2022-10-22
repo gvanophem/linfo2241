@@ -22,8 +22,8 @@
 
 typedef struct {
 int m, n; // dimensions de la matrice
-	char *data; // tableau 1D de taille m*n contenant les entrées de la matrice
-	char **a; // tableau 1D de m pointeurs vers chaque ligne, pour pouvoir appeler a[i][j]
+	unsigned char *data; // tableau 1D de taille m*n contenant les entrées de la matrice
+	unsigned char **a; // tableau 1D de m pointeurs vers chaque ligne, pour pouvoir appeler a[i][j]
 } matrix;
 
 typedef struct args{
@@ -44,9 +44,9 @@ void* thread_func(void *arg);
 matrix* allocate_matrix(int m, int n) {
 	matrix *mat = (matrix*) malloc(sizeof(matrix));
 	mat->m = m, mat->n = n;
-	mat->data = (char*)malloc(m*n*sizeof(char));
+	mat->data = (unsigned char*)malloc(m*n*sizeof(char));
 	if(mat->data == NULL) return NULL;
-	mat->a = (char**)malloc(m*sizeof(char*));
+	mat->a = (unsigned char**)malloc(m*sizeof(char*));
 	if (mat->a == NULL) return NULL;
 	for (int i = 0; i < m; i++)
 		mat->a[i] = mat->data+i*n;
@@ -63,7 +63,7 @@ void print_matrix(matrix* m, int dim){
     for (int i = 0; i < dim; i++){
         for (int j = 0; j < dim; j++)
         {
-            printf("%s  ",m->a[i][j]);
+            printf("%d  ",m->a[i][j]);
         }
         printf("\n");
     }
@@ -81,7 +81,7 @@ int mult_sub_matrix(matrix* key, matrix* file, matrix* encrypted, int N, int iCo
                 //printf("multiplied key[%d][%d] with file[%d][%d] \n", i,pos,pos+iCoord,j+jCoord);
             }
             //printf("put the sum into encrypted[%d][%d] \n",i+iCoord,j+jCoord);
-            encrypted->a[i+iCoord][j+jCoord] = (char) sum%128;
+            encrypted->a[i+iCoord][j+jCoord] = (unsigned char) sum%256;
         }
     }
 }
@@ -94,14 +94,12 @@ char* substr(char* src, int start, int len){
     return sub;
 }
  
-matrix* encrypt(char* buf, matrix** files, int size){
+matrix* encrypt(unsigned char* buf, matrix** files, int size){
     int index = atoi(substr(buf,0,4));
     int N  = atoi(substr(buf,4,4));
  
-    printf(substr(buf,4,4));
- 
     printf("index = %d\n",index);
-    printf("N = %d\n",N);
+    printf("N : %d\n",N);
  
     matrix* key = allocate_matrix(N,N);
     for (int i = 0; i < N*N; i++)
@@ -181,40 +179,69 @@ void* thread_func(void *arg) {
  
 void* handle_connection(void* client_socket, matrix** files, int size){
     char buffer[size * size + 8];
-    size_t bytes_read;
-    int msgsize = 0;
-    while((bytes_read = read(*((int*)client_socket), buffer+msgsize, sizeof(buffer)-msgsize-1)) > 0){
-        msgsize+= bytes_read;
-        if(msgsize > size * size + 8 -1 || buffer[msgsize-1] == '\n'){
-            break;
-        }
-    }buffer[msgsize-1] = 0;
-    for(int i = 0; i < size * size + 2; i++){
-        char sub;
-        memcpy(&sub, &buffer[i], 1);
+    // size_t bytes_read;
+    // int msgsize = 0;
+    // while((bytes_read = read(*((int*)client_socket), buffer+msgsize, sizeof(buffer)-msgsize-1)) > 0){
+    //     msgsize+= bytes_read;
+    //     if(msgsize > size * size + 8 -1 || buffer[msgsize-1] == '\n'){
+    //         break;
+    //     }
+    // }buffer[msgsize-1] = 0;
+    recv(*((int*)client_socket), buffer, size*size + 8, 0);
+    char idx[4];
+    memcpy(idx, &buffer[0], 4);
+    char l[4];
+    memcpy(l, &buffer[4], 4);
+    printf("Index : %s\n", idx);
+    printf("Length : %s\n", l);
+    int N = atoi(l);
+    for(int i = 0; i < N * N; i++){
+        unsigned char sub;
+        memcpy(&sub, &buffer[i + 8], 1);
         printf("%d ", sub);
-    }
+    }printf("\n");
 
-    printf("Request : %s\n", buffer);
-    printf("msg size : %d\n", msgsize);
+    // printf("Request : %s\n", buffer);
+    // printf("msg size : %d\n", msgsize);
 
     //buffer contains the message. Now let's encrypt this message
 
     matrix* encrypted = encrypt(buffer, files, size);
+    print_matrix(encrypted, size);
 
     char* msg = (char*)malloc(sizeof(char)*size*size+5);
     int index = 0;
     msg[index] = '0';
     index++;
-    int tm = size*size+5;
+    int tm = size*size;
 
-    char* sent_size = (char*)&tm;
+    //char* sent_size = (char*)&tm;
+    char sent_size[4];
+    sprintf(sent_size, "%d", tm);
     memcpy(&msg[index], sent_size, 4);
     index += 4;
-    memcpy(&msg[index], (char*)encrypted->data, size * size);
+    //memcpy(&msg[index], (char*)encrypted->data, size * size);
+    unsigned char val;
+    for(int i = 0; i < size * size; i++){
+        sprintf(&val, "%c",encrypted->data[i]);
+        memcpy(&msg[index], &val, 1);
+        index += 1;
+    }char err;
+    memcpy(&err, &msg[0], 1);
+    printf("error code : %c\n", err);
+    char length[4];
+    memcpy(length, &msg[1], 4);
+    printf("length : %d\n", atoi(length));
+    for(int i = 0; i < size*size; i++){
+        unsigned char sub;
+        memcpy(&sub, &msg[i + 5], 1);
+        printf("%d ", sub);
+    }
 
     //and send this message
-    write(*((int*)client_socket), msg, size*size+5);
+    //write(*((int*)client_socket), msg, size*size+5);
+    send(*((int*)client_socket), msg, size*size+5, 0);
+    printf("message sended\n");
 
     return 0;
 }
