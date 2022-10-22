@@ -11,13 +11,6 @@
 #include <pthread.h>
 #include <limits.h>
 #include <stdbool.h>
-#define MAX 80
-#define PORT 8080
-//#define SA struct sockaddr
-
-#define SERVERPORT 8080
-#define BUFSIZE 73//todo
-#define THREAD_POOL_SIZE 20
 #define SERVER_BACKLOG 100
 
 typedef struct {
@@ -77,9 +70,7 @@ int mult_sub_matrix(matrix* key, matrix* file, matrix* encrypted, int N, int iCo
             for (int pos = 0; pos < N; pos++)
             {
                 sum += (int)key->a[i][pos] * (int)file->a[pos+iCoord][j+jCoord];
-                //printf("multiplied key[%d][%d] with file[%d][%d] \n", i,pos,pos+iCoord,j+jCoord);
             }
-            //printf("put the sum into encrypted[%d][%d] \n",i+iCoord,j+jCoord);
             encrypted->a[i+iCoord][j+jCoord] = (unsigned char) sum%256;
         }
     }
@@ -178,14 +169,6 @@ void* thread_func(void *arg) {
  
 void* handle_connection(void* client_socket, matrix** files, int size){
     char buffer[size * size + 8];
-    // size_t bytes_read;
-    // int msgsize = 0;
-    // while((bytes_read = read(*((int*)client_socket), buffer+msgsize, sizeof(buffer)-msgsize-1)) > 0){
-    //     msgsize+= bytes_read;
-    //     if(msgsize > size * size + 8 -1 || buffer[msgsize-1] == '\n'){
-    //         break;
-    //     }
-    // }buffer[msgsize-1] = 0;
     recv(*((int*)client_socket), buffer, size*size + 8, 0);
     char idx[4];
     memcpy(idx, &buffer[0], 4);
@@ -197,13 +180,9 @@ void* handle_connection(void* client_socket, matrix** files, int size){
         memcpy(&sub, &buffer[i + 8], 1);
     }
 
-    // printf("Request : %s\n", buffer);
-    // printf("msg size : %d\n", msgsize);
-
     //buffer contains the message. Now let's encrypt this message
 
     matrix* encrypted = encrypt(buffer, files, size);
-    print_matrix(encrypted, size);
 
     char* msg = (char*)malloc(sizeof(char)*size*size+5);
     int index = 0;
@@ -211,21 +190,16 @@ void* handle_connection(void* client_socket, matrix** files, int size){
     index++;
     int tm = size*size;
 
-    //char* sent_size = (char*)&tm;
     char sent_size[4];
     sprintf(sent_size, "%d", tm);
     memcpy(&msg[index], sent_size, 4);
     index += 4;
-    //memcpy(&msg[index], (char*)encrypted->data, size * size);
     unsigned char val;
     for(int i = 0; i < size * size; i++){
         sprintf(&val, "%c",encrypted->data[i]);
         memcpy(&msg[index], &val, 1);
         index += 1;
     }
-
-    //and send this message
-    //write(*((int*)client_socket), msg, size*size+5);
     send(*((int*)client_socket), msg, size*size+5, 0);
 
     return 0;
@@ -240,8 +214,6 @@ bool checksize(int size){
     }return false;
 }
 
-
-// Driver function
 int main(int argc, char** argv)
 {
 
@@ -273,7 +245,6 @@ int main(int argc, char** argv)
 
     }
 
-    // generate files (only needs command line arguments, to do at the beginning, when server is launched)
     matrix** files = malloc(1000*sizeof(matrix)); 
     for (int i = 0; i < 1000; i++)
     {
@@ -298,7 +269,6 @@ int main(int argc, char** argv)
         pthread_create(&thread_pool[i], NULL, thread_func, (void*)arguments);
     }
    
-    // socket create and verification
     sockfd = socket(AF_INET, SOCK_STREAM, 0);
     if (sockfd == -1) {
         printf("socket creation failed...\n");
@@ -308,12 +278,10 @@ int main(int argc, char** argv)
         printf("Socket successfully created..\n");
     bzero(&servaddr, sizeof(servaddr));
    
-    // assign IP, PORT
     servaddr.sin_family = AF_INET;
     servaddr.sin_addr.s_addr = htonl(INADDR_ANY);
     servaddr.sin_port = htons(port);
    
-    // Binding newly created socket to given IP and verification
     if ((bind(sockfd, (SA*)&servaddr, sizeof(servaddr))) != 0) {
         printf("socket bind failed...\n");
         exit(0);
@@ -321,8 +289,7 @@ int main(int argc, char** argv)
     else
         printf("Socket successfully binded..\n");
    
-    // Now server is ready to listen and verification
-    if ((listen(sockfd, 5)) != 0) {
+    if ((listen(sockfd, SERVER_BACKLOG)) != 0) {
         printf("Listen failed...\n");
         exit(0);
     }
@@ -334,11 +301,8 @@ int main(int argc, char** argv)
 
     while (true)
     {
-        printf("Waiting for connections...\n");
- 
         addr_size = sizeof(SA_IN);
         check(client_socket = accept(sockfd, (SA*)&client_addr, (socklen_t*)&addr_size),"accept failed");
-        printf("Client connected\n");
  
         int* client = malloc(sizeof(int));
         *client = client_socket;

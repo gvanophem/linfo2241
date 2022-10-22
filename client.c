@@ -9,10 +9,7 @@
 #include <ctype.h>
 #include <time.h>
 #include <pthread.h>
-#define MAX 80
-#define PORT 8080
 #define SA struct sockaddr
-#define BUFSIZE 11
 
 typedef struct args{
     struct sockaddr_in server_addr;
@@ -76,10 +73,7 @@ void send_message(int sockfd, int size){
     for (int i = 0; i < size*size; i++)
     {
         int random = rand();
-        //printf("%d ", random%256);
         key->data[i] = (unsigned char)modulo(random, 256);
-        //printf("%d ", modulo(random, 256));
-        //sprintf(&key->data[i], "%c", rand()%256);
     }
     char* msg = malloc(size * size + 8);
     int written_bytes = 0;
@@ -99,69 +93,6 @@ void send_message(int sockfd, int size){
     send(sockfd, msg, size * size + 8, 0);
 
 }
-
-// void func(int sockfd, int max_time, int rate, struct sockaddr_in serveraddr, int size)
-// {
-//     int count = 0;
-//     time_t begin = time(NULL);
-//     double beg = begin;
-//     time_t sec;
-//     sec = time(NULL);
-//     int clac = 1;
-//     int i = 0;
-
-//     char* buffer = malloc(size*size);
-//     size_t bytes_read;
-//     int msgsize = 0;
-//     char N2[4];
-
-//     while(difftime(time(NULL), begin) < max_time){
-//         if(clac == 1){
-//             while(count < rate){
-//                 // int sockfd;
-//                 // if((sockfd = socket(AF_INET, SOCK_STREAM, 0)) != 0){
-//                 //     printf("socket creation failed\n");
-//                 //     exit(0);
-//                 // }if(connect(sockfd, (SA*)&serveraddr, sizeof(serveraddr)) != 0){
-//                 //     printf("failed to connect\n");
-//                 //     exit(0);
-//                 // }
-//                 send_message(sockfd,size);
-//                 count++;
-//                 i++;
-//                 while((bytes_read = read(sockfd, buffer+msgsize, sizeof(buffer)-msgsize-1)) > 0){
-//                     msgsize+= bytes_read;
-//                     if(msgsize > size * size + 5 -1 || buffer[msgsize-1] == '\n'){
-//                         break;
-//                     }if(msgsize >= 5){
-//                         memcpy(N2, &buffer[1], 4);
-//                         buffer = realloc(buffer, 5+atoi(N2));
-//                         break;
-//                     }
-//                 }//buffer[msgsize-1] = 0;
-//                 recv(sockfd, &buffer[msgsize], atoi(N2) + 5 - msgsize,0);
-//                 char err;
-//                 memcpy(&err, &buffer[0], 1);
-//                 memcpy(N2, &buffer[1], 4);
-//                 printf("error code : %c\n", err);
-//                 printf("N*N = %d\n", atoi(N2));
-//                 for(int i = 0; i < atoi(N2); i++){
-//                     unsigned char sub;
-//                     memcpy(&sub, &buffer[i+5], 1);
-//                     printf("%d ", sub);
-//                 }
-//                 msgsize = 0;
-//                 bytes_read = 0;
-//                 close(sockfd);
-                
-//             }clac = 0;
-//         }if(sec - time(NULL) != 0){
-//             clac = 1;
-//             count = 0;
-//             sec = time(NULL);
-//         }
-//     }//printf("%d message sent\n", i);
-// }
 
 int create_socket(struct sockaddr_in servaddr){
     int sock = socket(AF_INET, SOCK_STREAM, 0);
@@ -186,18 +117,7 @@ void send_and_receive(int sockfd, int size){
             buffer = realloc(buffer, 5+atoi(N2));
             break;
         }
-    }//buffer[msgsize-1] = 0;
-    recv(sockfd, &buffer[msgsize], atoi(N2) + 5 - msgsize,0);
-    // char err;
-    // memcpy(&err, &buffer[0], 1);
-    // memcpy(N2, &buffer[1], 4);
-    // printf("error code : %c\n", err);
-    // printf("N*N = %d\n", atoi(N2));
-    // for(int i = 0; i < atoi(N2); i++){
-    //     unsigned char sub;
-    //     memcpy(&sub, &buffer[i+5], 1);
-    //     printf("%d ", sub);
-    // }
+    }recv(sockfd, &buffer[msgsize], atoi(N2) + 5 - msgsize,0);
 }
 
 void* thread_func(void* args){
@@ -223,6 +143,14 @@ void* thread_func(void* args){
             sec = time(NULL);
         } 
     }//if pour terminer si un thread a perdu trop de temps.
+    if(count < max_time){
+        for(int i = 0; i < max_time-count; i++){
+            int sockfd = create_socket(servaddr);
+            printf("Request sending\n");
+            send_and_receive(sockfd, size);
+            close(sockfd);
+        }
+    }
 }
 
 int main(int argc, char** argv)
@@ -249,7 +177,6 @@ int main(int argc, char** argv)
         }
 
     }
-    
 
     char* str = malloc(strlen(argv[argc-1]));
     strcpy(str, argv[argc - 1]);
@@ -264,7 +191,6 @@ int main(int argc, char** argv)
     int sockfd, connfd;
     struct sockaddr_in servaddr, cli;
  
-    // socket create and verification
     sockfd = socket(AF_INET, SOCK_STREAM, 0);
     if (sockfd == -1) {
         printf("socket creation failed...\n");
@@ -274,7 +200,6 @@ int main(int argc, char** argv)
         printf("Socket successfully created..\n");
     bzero(&servaddr, sizeof(servaddr));
  
-    // assign IP, PORT
     servaddr.sin_family = AF_INET;
     servaddr.sin_addr.s_addr = inet_addr(address);
     servaddr.sin_port = htons(atoi(port));
@@ -292,19 +217,6 @@ int main(int argc, char** argv)
     for(int i = 0; i < rate; i++){
         pthread_join(thread_pool[i], NULL);
     }
- 
-    // connect the client socket to server socket
-    if (connect(sockfd, (SA*)&servaddr, sizeof(servaddr))
-        != 0) {
-        printf("connection with the server failed...\n");
-        exit(0);
-    }
-    else
-        printf("connected to the server..\n");
- 
-    // function for chat
-
-    //func(sockfd, max_time, rate, servaddr, size);
  
     // close the socket
     close(sockfd);
