@@ -30,8 +30,7 @@ typedef struct args{
     int size;
     matrix** files;
 }args_t;
- 
-pthread_t thread_pool[THREAD_POOL_SIZE];
+
 pthread_mutex_t mutex = PTHREAD_MUTEX_INITIALIZER;
  
 typedef struct sockaddr_in SA_IN;
@@ -97,6 +96,10 @@ char* substr(char* src, int start, int len){
 matrix* encrypt(unsigned char* buf, matrix** files, int size){
     int index = atoi(substr(buf,0,4));
     int N  = atoi(substr(buf,4,4));
+    if(size%N != 0){
+        printf("The key size must divide the file size, up to the file size itself.\n");
+        exit(0);
+    }
  
     printf("index = %d\n",index);
     printf("N : %d\n",N);
@@ -246,6 +249,15 @@ void* handle_connection(void* client_socket, matrix** files, int size){
     return 0;
 }
 
+bool checksize(int size){
+    int m = 1;
+    for(int i = 0; i < 18; i++){
+        m = m*2;
+        if(m == size)
+        return true;
+    }return false;
+}
+
 
 // Driver function
 int main(int argc, char** argv)
@@ -264,6 +276,10 @@ int main(int argc, char** argv)
             break;
         case 's':
             size = atoi(optarg);
+            if(checksize(size) == false){
+                printf("Argument in -s must be a power of 2 less or equal to 131072.\n");
+                exit(0);
+            }
             break;
         case 'p':
             port = atoi(optarg);
@@ -289,11 +305,13 @@ int main(int argc, char** argv)
     int sockfd, connfd, len;
     SA_IN servaddr, client_addr;
 
+    pthread_t thread_pool[num_th];
+
     args_t* arguments = malloc(sizeof(args_t));
     arguments->files = files;
     arguments->size = size;
 
-    for (int i = 0; i < THREAD_POOL_SIZE; i++)
+    for (int i = 0; i < num_th; i++)
     {
         pthread_create(&thread_pool[i], NULL, thread_func, (void*)arguments);
     }

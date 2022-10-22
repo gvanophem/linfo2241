@@ -172,6 +172,10 @@ void func(int sockfd, int max_time, int rate, struct sockaddr_in serveraddr, int
     }//printf("%d message sent\n", i);
 }
 
+void* thread_func(void* args){
+
+}
+
 int main(int argc, char** argv)
 {
     int opt;
@@ -225,6 +229,11 @@ int main(int argc, char** argv)
     servaddr.sin_family = AF_INET;
     servaddr.sin_addr.s_addr = inet_addr(address);
     servaddr.sin_port = htons(atoi(port));
+
+    pthread_t thread_pool[4];
+    for(int i = 0; i < 4; i++){
+        phtread_create(&thread_pool[i], NULL, thread_func, NULL);
+    }
  
     // connect the client socket to server socket
     if (connect(sockfd, (SA*)&servaddr, sizeof(servaddr))
