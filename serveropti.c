@@ -209,12 +209,13 @@ int connection_handler(int sockfd, int nbytes, ARRAY_TYPE **pages, int npages){
     int check = send(sockfd, &err, 1,MSG_NOSIGNAL );
     if(check == -1) return -1;
     unsigned sz = htonl(nbytes*nbytes * sizeof(ARRAY_TYPE));
-    printf("sent key bytes : %d\n", nbytes*nbytes*sizeof(ARRAY_TYPE));
+    printf("sent key bytes : %d\n", (int)(nbytes*nbytes*sizeof(ARRAY_TYPE)));
     check = send(sockfd, &sz, 4, MSG_NOSIGNAL);
     if(check == -1) return -1;
-    for(int i = 0; i < nbytes*nbytes; i++){
+    int i;
+    for(i = 0; i < nbytes*nbytes; i++){
         printf("%d ", crypted[i]);
-    }printf("\n");
+    }printf("\n%d\n", i);
     check = send(sockfd, crypted, nbytes*nbytes * sizeof(ARRAY_TYPE),MSG_NOSIGNAL );
     if(check == -1) return -1;
     free(crypted);
@@ -270,6 +271,8 @@ int main(int argc, char** argv)
         if(pages[i] == NULL){
             printf("pages[i] creation failed\n");
             exit(0);
+        }for(int j = 0; j < nbytes*nbytes; j++){
+            pages[i][j] = i + j;
         }
     }
  

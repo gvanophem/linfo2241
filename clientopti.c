@@ -231,7 +231,9 @@ void* rcv(void* r) {
             unsigned b = left;
             if (b > 65536) b = 65536;
             left -= recv(sockfd, &buffer, b, 0);
-        }printf("buffer : %s\n", buffer);
+        }for(int i = 0; i < filesz/sizeof(ARRAY_TYPE); i++){
+            printf("%d ", (ARRAY_TYPE)buffer[i*4]);
+        }printf("\n");
     }
     printf("reception done...\n");
     unsigned t = (unsigned)(intptr_t)r;
