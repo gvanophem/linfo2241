@@ -204,6 +204,7 @@ void* rcv(void* r) {
     unsigned fileindex = htonl(rand() % npages);
     ret = send(sockfd, &fileindex, 4, 0);
     //Send key size
+    printf("key size : %d\n", keysz);
     int revkey = htonl(keysz);
     ret = send(sockfd, &revkey, 4, 0);
     //Send key
@@ -213,22 +214,26 @@ void* rcv(void* r) {
     {
         int random = rand();
         key[i] = (ARRAY_TYPE)modulo(random, 100000);
-    }
+        //printf("%d ", key[i]);
+    }//printf("\n");
     ret = send(sockfd, key, sizeof(ARRAY_TYPE) * keysz*keysz, 0);
     unsigned char error;
     recv(sockfd, &error, 1, 0);
+    printf("error code : %d\n", error);
     unsigned filesz;
     recv(sockfd, &filesz, 4, 0);
+    filesz = ntohl(filesz);
+    printf("file size : %d\n", (int)(filesz/sizeof(ARRAY_TYPE)));
     if (filesz > 0) {
-        long int left = ntohl(filesz);
+        long int left = filesz;
         char buffer[65536];
         while (left > 0) {
             unsigned b = left;
-            if (b > 65536)
-            b = 65536;
+            if (b > 65536) b = 65536;
             left -= recv(sockfd, &buffer, b, 0);
-        }
+        }printf("buffer : %s\n", buffer);
     }
+    printf("reception done...\n");
     unsigned t = (unsigned)(intptr_t)r;
     //receive_times[t] = getts();
     close(sockfd);
@@ -258,7 +263,11 @@ int main(int argc, char** argv)
         }
  
     }
+
+    printf("file size : %d\n", size);
  
+    int npages = 1000;
+
     char* str = malloc(strlen(argv[argc-1]));
     strcpy(str, argv[argc - 1]);
  
@@ -284,8 +293,8 @@ int main(int argc, char** argv)
     arguments->size = size;
     arguments->rate = rate;
     arguments->port = port;
- 
-    printf("argument ok...\n");
+    arguments->npages = npages;
+    arguments->keysz = size;
  
  
     //long unsigned start = getts();
@@ -308,6 +317,7 @@ int main(int argc, char** argv)
  
     pthread_t thread;
     pthread_create( &thread, NULL, rcv, (void*)arguments);
+    pthread_join(thread, NULL);
  
     // char* str = malloc(strlen(argv[argc-1]));
     // strcpy(str, argv[argc - 1]);

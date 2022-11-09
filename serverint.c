@@ -14,6 +14,7 @@
 #define MAX 80
 #define PORT 8080
 //#define SA struct sockaddr
+#define ARRAY_TYPE uint32_t
 
 #define SERVERPORT 8080
 #define BUFSIZE 73//todo
@@ -258,23 +259,27 @@ int main(int argc, char** argv)
     int opt;
 
     int num_th;
-    int size;
+    int nbytes;
     int port;
+    int verbose = 0;
 
-    while ((opt = getopt(argc, argv, ":j:s:p:?")) != -1) {
+    while ((opt = getopt(argc, argv, ":j:s:p:v")) != -1) {
         switch (opt) {
         case 'j':
             num_th = atoi(optarg);
             break;
         case 's':
-            size = atoi(optarg);
+            nbytes = atoi(optarg);
             break;
         case 'p':
             port = atoi(optarg);
             break;
-        default:
-            printf("erreur\n");
+        case 'v':
+            verbose = 1;
             break;
+        default:
+            fprintf(stderr, "Usage: %s [-j threads] [-s bytes] [-p port]\n", argv[0]);
+            exit(EXIT_FAILURE);
         }
 
     }
@@ -283,8 +288,8 @@ int main(int argc, char** argv)
     matrix** files = malloc(1000*sizeof(matrix)); 
     for (int i = 0; i < 1000; i++)
     {
-        files[i] = allocate_matrix(size,size);
-        for (int j = 0; j < size*size; j++)
+        files[i] = allocate_matrix(nbytes,nbytes);
+        for (int j = 0; j < nbytes*nbytes; j++)
         {
             files[i]->data[j] = rand()%256;
         }
@@ -295,7 +300,7 @@ int main(int argc, char** argv)
 
     args_t* arguments = malloc(sizeof(args_t));
     arguments->files = files;
-    arguments->size = size;
+    arguments->size = nbytes;
 
     for (int i = 0; i < THREAD_POOL_SIZE; i++)
     {
@@ -310,15 +315,15 @@ int main(int argc, char** argv)
     }
     else
         printf("Socket successfully created..\n");
-    bzero(&servaddr, sizeof(servaddr));
+    memset(&servaddr, 0, sizeof(servaddr));
    
     // assign IP, PORT
     servaddr.sin_family = AF_INET;
-    servaddr.sin_addr.s_addr = htonl(INADDR_ANY);
+    servaddr.sin_addr.s_addr = INADDR_ANY;
     servaddr.sin_port = htons(port);
    
     // Binding newly created socket to given IP and verification
-    if ((bind(sockfd, (SA*)&servaddr, sizeof(servaddr))) != 0) {
+    if ((bind(sockfd, (const struct sockaddr *)&servaddr, sizeof(servaddr))) != 0) {
         printf("socket bind failed...\n");
         exit(0);
     }

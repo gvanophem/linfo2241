@@ -170,6 +170,7 @@ int connection_handler(int sockfd, int nbytes, ARRAY_TYPE **pages, int npages){
     if((tread = recv(sockfd, &fileid, 4, 0)) == -1) return -1;
     if((tread = recv(sockfd, &keysz, 4, 0))  == -1) return -1;
     keysz = ntohl(keysz);
+    printf("key size : %d\n", keysz);
     ARRAY_TYPE key[keysz*keysz];
     unsigned tot = keysz*keysz * sizeof(ARRAY_TYPE);
     unsigned done = 0;
@@ -177,6 +178,9 @@ int connection_handler(int sockfd, int nbytes, ARRAY_TYPE **pages, int npages){
         if((tread = recv(sockfd, key, tot-done, 0)) == -1) return -1;
         done+= tread;
     }
+    for(int i = 0; i < keysz*keysz; i++){
+        printf("%d ", key[i]);
+    }printf("\n");
     int nr = nbytes/keysz;
     ARRAY_TYPE* file = pages[fileid % npages];
     ARRAY_TYPE* crypted = malloc(nbytes*nbytes * sizeof(ARRAY_TYPE));
@@ -196,16 +200,21 @@ int connection_handler(int sockfd, int nbytes, ARRAY_TYPE **pages, int npages){
                         int vline = (vstart + k) * nbytes + hstart;
                         tot += key[ln * keysz + k] * file[vline + col];
                     }
-                    crypted[aline + col] = tot;
+                    crypted[aline + col] = (ARRAY_TYPE)tot;
                 }
             }
         }
     }
+
     int check = send(sockfd, &err, 1,MSG_NOSIGNAL );
     if(check == -1) return -1;
     unsigned sz = htonl(nbytes*nbytes * sizeof(ARRAY_TYPE));
+    printf("sent key bytes : %d\n", nbytes*nbytes*sizeof(ARRAY_TYPE));
     check = send(sockfd, &sz, 4, MSG_NOSIGNAL);
     if(check == -1) return -1;
+    for(int i = 0; i < nbytes*nbytes; i++){
+        printf("%d ", crypted[i]);
+    }printf("\n");
     check = send(sockfd, crypted, nbytes*nbytes * sizeof(ARRAY_TYPE),MSG_NOSIGNAL );
     if(check == -1) return -1;
     free(crypted);
@@ -247,7 +256,7 @@ int main(int argc, char** argv)
  
     }
  
-    printf("getopt ok \n");
+    printf("nbytes : %d\n", nbytes);
  
     int npages = 1000;
     ARRAY_TYPE** pages;
@@ -256,7 +265,6 @@ int main(int argc, char** argv)
         printf("pages creation failed\n");
         exit(0);
     }
-    printf("pages malloc ok\n");
     for(int i = 0; i < npages; i++){
         pages[i] = malloc(sizeof(ARRAY_TYPE)*nbytes*nbytes);
         if(pages[i] == NULL){
@@ -264,8 +272,6 @@ int main(int argc, char** argv)
             exit(0);
         }
     }
- 
-    printf("creation pages ok\n");
  
     // matrix** files = malloc(1000*sizeof(matrix)); 
     // for (int i = 0; i < 1000; i++)
@@ -324,24 +330,24 @@ int main(int argc, char** argv)
     len = sizeof(client_addr);
  
     int client_socket, addr_size;
-    // while((client_socket = accept(sockfd, (struct sockaddr *)&client_addr, (socklen_t *)&len))){
-    //     printf("connection entered...\n");
-    //     check(connection_handler(client_socket, nbytes, pages, npages), "Failed to handle the connection\n");
-    // }
-    pthread_mutex_t mutex = PTHREAD_MUTEX_INITIALIZER;
- 
-    while (true)
-    {
-        addr_size = sizeof(SA_IN);
-        check(client_socket = accept(sockfd, (SA*)&client_addr, (socklen_t*)&addr_size),"accept failed");
- 
-        int* client = malloc(sizeof(int));
-        *client = client_socket;
-        pthread_mutex_lock(&mutex);
-        enqueue(client);
-        pthread_mutex_unlock(&mutex);
- 
+    while((client_socket = accept(sockfd, (struct sockaddr *)&client_addr, (socklen_t *)&len))){
+        printf("connection entered...\n");
+        check(connection_handler(client_socket, nbytes, pages, npages), "Failed to handle the connection\n");
     }
+    // pthread_mutex_t mutex = PTHREAD_MUTEX_INITIALIZER;
+ 
+    // while (true)
+    // {
+    //     addr_size = sizeof(SA_IN);
+    //     check(client_socket = accept(sockfd, (SA*)&client_addr, (socklen_t*)&addr_size),"accept failed");
+ 
+    //     int* client = malloc(sizeof(int));
+    //     *client = client_socket;
+    //     pthread_mutex_lock(&mutex);
+    //     enqueue(client);
+    //     pthread_mutex_unlock(&mutex);
+ 
+    // }
  
     close(sockfd);
 }
