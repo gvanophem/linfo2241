@@ -181,8 +181,17 @@ void* handle_connection(void* client_socket, matrix** files, int size){
     }
 
     //buffer contains the message. Now let's encrypt this message
+    double time_spent = 0.0;
+    //clock_t begin = clock();
 
     matrix* encrypted = encrypt(buffer, files, size);
+    // clock_t end = clock();
+    // time_spent = (double)(end-begin)/CLOCKS_PER_SEC;
+    // pthread_mutex_lock(&mutex);
+    // FILE* times = fopen("times_ref_encrypt.txt", "a");
+    // fprintf(times, "%f\n", time_spent);
+    // fclose(times);
+    // pthread_mutex_unlock(&mutex);
 
     char* msg = (char*)malloc(sizeof(char)*size*size+5);
     int index = 0;
@@ -244,6 +253,9 @@ int main(int argc, char** argv)
         }
 
     }
+
+    FILE* times = fopen("times_ref.txt","a");
+    fprintf(times, "number threads : %d\n", num_th);
 
     matrix** files = malloc(1000*sizeof(matrix)); 
     for (int i = 0; i < 1000; i++)
