@@ -11,11 +11,11 @@
 #include <pthread.h>
 #define SA struct sockaddr
 #define ARRAY_TYPE uint32_t
-
+ 
 pthread_mutex_t mutex = PTHREAD_MUTEX_INITIALIZER;
-
+ 
 long unsigned *receive_times;
-
+ 
 typedef struct args{
     struct sockaddr_in server_addr;
     int max_time;
@@ -26,13 +26,13 @@ typedef struct args{
     int npages;
     int keysz;
 }args_t;
-
+ 
 typedef struct {
 int m, n; // dimensions de la matrice
 	unsigned char *data; // tableau 1D de taille m*n contenant les entrées de la matrice
 	unsigned char **a; // tableau 1D de m pointeurs vers chaque ligne, pour pouvoir appeler a[i][j]
 } matrix;
-
+ 
 matrix* allocate_matrix(int m, int n) {
 	matrix *mat = (matrix*) malloc(sizeof(matrix));
 	mat->m = m, mat->n = n;
@@ -50,7 +50,7 @@ void free_matrix(matrix *mat) {
 	free(mat->a);
 	free(mat->data);       
 }
-
+ 
 void print_matrix(matrix* m, int dim){
     for (int i = 0; i < dim; i++){
         for (int j = 0; j < dim; j++)
@@ -60,14 +60,14 @@ void print_matrix(matrix* m, int dim){
         printf("\n");
     }
 }
-
+ 
 char* substr(char* src, int start, int len){
     char* sub = malloc(sizeof(char)*(len+1));
     memcpy(sub, &src[start], len);
     sub[len] = '\0';
     return sub;
 }
-
+ 
 char modulo(int random, int mod){
     unsigned char c = random%mod;
     if((int)c < 0){
@@ -75,7 +75,7 @@ char modulo(int random, int mod){
     }
     return c;
 }
-
+ 
 void send_message(int sockfd, int size){
     // generate key
     matrix* key = allocate_matrix(size,size);
@@ -101,9 +101,9 @@ void send_message(int sockfd, int size){
         written_bytes += 1;
     }
     send(sockfd, msg, size * size + 8, 0);
-
+ 
 }
-
+ 
 int create_socket(struct sockaddr_in servaddr){
     int sock = socket(AF_INET, SOCK_STREAM, 0);
     if(connect(sock, (SA*)&servaddr, sizeof(servaddr)) != 0){
@@ -111,7 +111,7 @@ int create_socket(struct sockaddr_in servaddr){
         exit(0);
     }return sock;
 }
-
+ 
 void send_and_receive(int sockfd, int size){
     char* buffer = malloc(size*size);
     size_t bytes_read = 0;
@@ -129,7 +129,7 @@ void send_and_receive(int sockfd, int size){
         }
     }recv(sockfd, &buffer[msgsize], atoi(N2) + 5 - msgsize,0);
 }
-
+ 
 void* thread_func(void* args){
     args_t* arguments = (args_t*)args;
     struct sockaddr_in servaddr = arguments->server_addr;
@@ -175,7 +175,15 @@ void* thread_func(void* args){
         }
     }
 }
-
+ 
+int check(int err, const char *msg){
+    if(err == -1){
+        perror(msg);
+        exit(1);
+    }    
+    return err;
+}
+ 
 void* rcv(void* r) {
     args_t* arguments = (args_t*)r;
     struct sockaddr_in servaddr = arguments->server_addr;
@@ -183,7 +191,7 @@ void* rcv(void* r) {
     int npages = arguments->npages;
     int keysz = arguments->keysz;
     int nbytes = arguments->size;
-
+ 
     int ret;
     int sockfd;
     // Creating socket file descriptor
@@ -191,7 +199,7 @@ void* rcv(void* r) {
         perror("socket creation failed");
         exit(EXIT_FAILURE);
     }
-    connect(sockfd, (struct sockaddr*)&servaddr, sizeof(servaddr));
+    check(connect(sockfd, (struct sockaddr*)&servaddr, sizeof(servaddr)), "connection failed...\n");
     //Send file id
     unsigned fileindex = htonl(rand() % npages);
     ret = send(sockfd, &fileindex, 4, 0);
@@ -222,18 +230,18 @@ void* rcv(void* r) {
         }
     }
     unsigned t = (unsigned)(intptr_t)r;
-    receive_times[t] = getts();
+    //receive_times[t] = getts();
     close(sockfd);
 }
-
+ 
 int main(int argc, char** argv)
 {
     int opt;
-
-    int size;
-    int rate;
-    int max_time;
-
+ 
+    int size = 4;
+    int rate = 1;
+    int max_time = 1;
+ 
     while ((opt = getopt(argc, argv, ":k:r:t:?")) != -1) {
         switch (opt) {
         case 'k':
@@ -248,64 +256,69 @@ int main(int argc, char** argv)
         default:
             break;
         }
-
+ 
     }
-
+ 
     char* str = malloc(strlen(argv[argc-1]));
     strcpy(str, argv[argc - 1]);
-    
+ 
     char* token = strtok(str, ":");
     char* address = malloc(sizeof(char)*strlen(token));
     memcpy(address, token, strlen(token));
     token = strtok(NULL, ":");
     char* port = malloc(strlen(token));
     memcpy(port, token, strlen(token));
-
-
+ 
+ 
     struct sockaddr_in servaddr;
     memset(&servaddr, 0, sizeof(servaddr));
  
     servaddr.sin_family = AF_INET;
     servaddr.sin_addr.s_addr = inet_addr(address);
     servaddr.sin_port = htons(atoi(port));
-
-
+ 
+ 
     args_t* arguments = malloc(sizeof(args_t));
     arguments->server_addr = servaddr;
     arguments->max_time = max_time;
     arguments->size = size;
     arguments->rate = rate;
     arguments->port = port;
-
-
-    long unsigned start = getts();
+ 
+    printf("argument ok...\n");
+ 
+ 
+    //long unsigned start = getts();
     int diffrate = 1000000000 / rate;
     int next = 0;
     int i = 0;
     long unsigned * sent_times = malloc(sizeof(long unsigned) * rate * max_time);
     if(sent_times == NULL) return -1;
     receive_times = malloc(sizeof(long unsigned) * rate * max_time);
-    while (getts() - start < (long unsigned)1000000000 * max_time) {
-        next += diffrate;
-        while (getts() < next) {
-            usleep((next - getts()) / 1000);
-        }
-        sent_times[i] = getts();
-        pthread_t thread;
-        pthread_create( &thread, NULL, rcv, (void*)arguments);
-        i++;
-    }
-
+    // while (getts() - start < (long unsigned)1000000000 * max_time) {
+    //     next += diffrate;
+    //     while (getts() < next) {
+    //         usleep((next - getts()) / 1000);
+    //     }
+    //     sent_times[i] = getts();
+    //     pthread_t thread;
+    //     pthread_create( &thread, NULL, rcv, (void*)arguments);
+    //     i++;
+    // }
+ 
+    pthread_t thread;
+    pthread_create( &thread, NULL, rcv, (void*)arguments);
+ 
     // char* str = malloc(strlen(argv[argc-1]));
     // strcpy(str, argv[argc - 1]);
-    
+ 
     // char* token = strtok(str, ":");
     // char* address = malloc(sizeof(char)*strlen(token));
     // memcpy(address, token, strlen(token));
     // token = strtok(NULL, ":");
     // char* port = malloc(strlen(token));
     // memcpy(port, token, strlen(token));
-
+ 
     // int sockfd, connfd;
     // struct sockaddr_in servaddr, cli;
  
@@ -321,25 +334,25 @@ int main(int argc, char** argv)
     // servaddr.sin_family = AF_INET;
     // servaddr.sin_addr.s_addr = inet_addr(address);
     // servaddr.sin_port = htons(atoi(port));
-
+ 
     // //clock_t begin = clock();
-
+ 
     // args_t* arguments = malloc(sizeof(args_t));
     // arguments->server_addr = servaddr;
     // arguments->max_time = max_time;
     // arguments->size = size;
     // arguments->start = clock();
     // arguments->rate = rate;
-
+ 
     // pthread_t thread_pool[rate];
     // for(int i = 0; i < rate; i++){
     //     pthread_create(&thread_pool[i], NULL, thread_func, (void*)arguments);
     // }
-
+ 
     // for(int i = 0; i < rate; i++){
     //     pthread_join(thread_pool[i], NULL);
     // }
-
+ 
     // clock_t end = clock();
     // double spent_time = 0.0;
     // FILE* times = fopen("times_ref.txt", "a");
@@ -348,8 +361,8 @@ int main(int argc, char** argv)
  
     // close the socket
     // close(sockfd);
-
-    
-
+ 
+ 
+ 
     // free(str);
 }
