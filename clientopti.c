@@ -214,8 +214,8 @@ void* rcv(void* r) {
     {
         int random = rand();
         key[i] = (ARRAY_TYPE)modulo(random, 100000);
-        //printf("%d ", key[i]);
-    }//printf("\n");
+        printf("%d ", key[i]);
+    }printf("\n");
     ret = send(sockfd, key, sizeof(ARRAY_TYPE) * keysz*keysz, 0);
     unsigned char error;
     recv(sockfd, &error, 1, 0);
@@ -225,14 +225,25 @@ void* rcv(void* r) {
     filesz = ntohl(filesz);
     printf("file size : %d\n", (int)(filesz/sizeof(ARRAY_TYPE)));
     if (filesz > 0) {
-        long int left = filesz;
-        char buffer[65536];
-        while (left > 0) {
-            unsigned b = left;
-            if (b > 65536) b = 65536;
-            left -= recv(sockfd, &buffer, b, 0);
-        }for(int i = 0; i < filesz/sizeof(ARRAY_TYPE); i++){
-            printf("%d ", (ARRAY_TYPE)buffer[i*4]);
+        // long int left = filesz;
+        // char buffer[65536];
+        // while (left > 0) {
+        //     unsigned b = left;
+        //     if (b > 65536) b = 65536;
+        //     left -= recv(sockfd, &buffer, b, 0);
+        // }for(int i = 0; i < filesz/sizeof(ARRAY_TYPE); i++){
+        //     printf("%d ", (ARRAY_TYPE)buffer[i*4]);
+        // }printf("\n");
+        ARRAY_TYPE buffer[filesz/sizeof(ARRAY_TYPE)];
+        unsigned tot = filesz;
+        unsigned done = 0;
+        int tread;
+        while( done < tot){
+            if((tread = recv(sockfd, buffer, tot-done, 0)) == -1) return NULL;
+            done+= tread;
+        }
+        for(int i = 0; i < filesz/sizeof(ARRAY_TYPE); i++){
+            printf("%d ", (ARRAY_TYPE)buffer[i]);
         }printf("\n");
     }
     printf("reception done...\n");
