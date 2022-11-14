@@ -11,10 +11,11 @@
 #include <pthread.h>
 #define SA struct sockaddr
 #define ARRAY_TYPE uint32_t
+#define BILLION  1000000000L
  
 pthread_mutex_t mutex = PTHREAD_MUTEX_INITIALIZER;
  
-long unsigned *receive_times;
+clock_t *receive_times;
  
 typedef struct args{
     struct sockaddr_in server_addr;
@@ -25,6 +26,7 @@ typedef struct args{
     char* port;
     int npages;
     int keysz;
+    int t;
 }args_t;
  
 typedef struct {
@@ -191,6 +193,7 @@ void* rcv(void* r) {
     int npages = arguments->npages;
     int keysz = arguments->keysz;
     int nbytes = arguments->size;
+    int t = arguments->t;
  
     int ret;
     int sockfd;
@@ -214,7 +217,7 @@ void* rcv(void* r) {
     {
         int random = rand();
         key[i] = (ARRAY_TYPE)modulo(random, 100000);
-        printf("%d ", key[i]);
+        //printf("%d ", key[i]);
     }printf("\n");
     ret = send(sockfd, key, sizeof(ARRAY_TYPE) * keysz*keysz, 0);
     unsigned char error;
@@ -242,13 +245,12 @@ void* rcv(void* r) {
             if((tread = recv(sockfd, buffer, tot-done, 0)) == -1) return NULL;
             done+= tread;
         }
-        for(int i = 0; i < filesz/sizeof(ARRAY_TYPE); i++){
-            printf("%d ", (ARRAY_TYPE)buffer[i]);
-        }printf("\n");
+        // for(int i = 0; i < filesz/sizeof(ARRAY_TYPE); i++){
+        //     printf("%d ", (ARRAY_TYPE)buffer[i]);
+        // }printf("\n");
     }
     printf("reception done...\n");
-    unsigned t = (unsigned)(intptr_t)r;
-    //receive_times[t] = getts();
+    receive_times[t] = clock();
     close(sockfd);
 }
  
@@ -309,83 +311,41 @@ int main(int argc, char** argv)
     arguments->npages = npages;
     arguments->keysz = size;
  
- 
-    //long unsigned start = getts();
-    int diffrate = 1000000000 / rate;
-    int next = 0;
+    
+    struct timespec *start = malloc(sizeof(struct timespec));
+    clock_gettime(CLOCK_REALTIME, start);
+    printf("time : %d\n", start->tv_sec);
+    double diffrate = (double)(1000000000 / rate);
+    double next = 0;
     int i = 0;
-    long unsigned * sent_times = malloc(sizeof(long unsigned) * rate * max_time);
+    long unsigned * sent_times = malloc(sizeof(clock_t) * rate * max_time);
     if(sent_times == NULL) return -1;
     receive_times = malloc(sizeof(long unsigned) * rate * max_time);
-    // while (getts() - start < (long unsigned)1000000000 * max_time) {
-    //     next += diffrate;
-    //     while (getts() < next) {
-    //         usleep((next - getts()) / 1000);
-    //     }
-    //     sent_times[i] = getts();
-    //     pthread_t thread;
-    //     pthread_create( &thread, NULL, rcv, (void*)arguments);
-    //     i++;
-    // }
+    struct timespec *curr = malloc(sizeof(struct timespec));
+    clock_gettime(CLOCK_REALTIME, curr);
+    
+    while (( curr->tv_sec - start->tv_sec ) + (double)( curr->tv_nsec - start->tv_nsec ) / (double)BILLION < max_time) {
+        double accum;
+        accum = ( curr->tv_sec - start->tv_sec ) + ((double)( curr->tv_nsec - start->tv_nsec ) / (double)BILLION);
+        printf( "%lf\n", accum );
+        next += diffrate;
+        printf("diffrate : %lf, curr : %lf, next : %lf\n",diffrate, accum, next);
+        while ((curr->tv_sec + ((double)curr->tv_nsec/((double)BILLION))) < next) {
+            printf("boucle\n");
+            clock_gettime(CLOCK_REALTIME, curr);
+            //printf("time sleeping : %f\n", (next - clock_gettime(CLOCK_REALTIME, start))/CLOCKS_PER_SEC);
+            usleep((next - (curr->tv_sec + (double)curr->tv_nsec/(double)BILLION))*1000000);
+        }
+        // sent_times[i] = curr->tv_sec; sent_times trop petit
+        arguments->t = i;
+        pthread_t thread;
+        //pthread_create( &thread, NULL, rcv, (void*)arguments);
+        //pthread_join(thread, NULL);
+        i++;
+        clock_gettime(CLOCK_REALTIME, curr);
+    }
  
-    pthread_t thread;
-    pthread_create( &thread, NULL, rcv, (void*)arguments);
-    pthread_join(thread, NULL);
- 
-    // char* str = malloc(strlen(argv[argc-1]));
-    // strcpy(str, argv[argc - 1]);
- 
-    // char* token = strtok(str, ":");
-    // char* address = malloc(sizeof(char)*strlen(token));
-    // memcpy(address, token, strlen(token));
-    // token = strtok(NULL, ":");
-    // char* port = malloc(strlen(token));
-    // memcpy(port, token, strlen(token));
- 
-    // int sockfd, connfd;
-    // struct sockaddr_in servaddr, cli;
- 
-    // sockfd = socket(AF_INET, SOCK_STREAM, 0);
-    // if (sockfd == -1) {
-    //     printf("socket creation failed...\n");
-    //     exit(0);
-    // }
-    // else
-    //     printf("Socket successfully created..\n");
-    // bzero(&servaddr, sizeof(servaddr));
- 
-    // servaddr.sin_family = AF_INET;
-    // servaddr.sin_addr.s_addr = inet_addr(address);
-    // servaddr.sin_port = htons(atoi(port));
- 
-    // //clock_t begin = clock();
- 
-    // args_t* arguments = malloc(sizeof(args_t));
-    // arguments->server_addr = servaddr;
-    // arguments->max_time = max_time;
-    // arguments->size = size;
-    // arguments->start = clock();
-    // arguments->rate = rate;
- 
-    // pthread_t thread_pool[rate];
-    // for(int i = 0; i < rate; i++){
-    //     pthread_create(&thread_pool[i], NULL, thread_func, (void*)arguments);
-    // }
- 
-    // for(int i = 0; i < rate; i++){
-    //     pthread_join(thread_pool[i], NULL);
-    // }
- 
-    // clock_t end = clock();
-    // double spent_time = 0.0;
-    // FILE* times = fopen("times_ref.txt", "a");
-    // fprintf(times, "%f\n", spent_time);
-    // fclose(times);
- 
-    // close the socket
-    // close(sockfd);
- 
- 
- 
-    // free(str);
+    // pthread_t thread;
+    // pthread_create( &thread, NULL, rcv, (void*)arguments);
+    // pthread_join(thread, NULL);
 }
