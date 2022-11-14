@@ -48,7 +48,7 @@ ARRAY_TYPE* line_mul(ARRAY_TYPE* file, ARRAY_TYPE* key, int nbytes, int keysz){
     //         }
     //     }
     // }return crypt;
-    for(int i =0; i < nr; i++){
+    for(int i = 0; i < nr; i++){
         int istart = i * keysz;
         for(int j = 0; j < nr; j++){
             int jstart = j * keysz;
@@ -56,32 +56,45 @@ ARRAY_TYPE* line_mul(ARRAY_TYPE* file, ARRAY_TYPE* key, int nbytes, int keysz){
                 for(int col = 0; col < keysz; col++){
                     ARRAY_TYPE r = key[ln*keysz + col]; //peut etre utilisé file plutôt ici, file[(istart + ln) * nbytes + jstart + col]
                     for(int k = 0; k < keysz; k++){
+                        //printf("matmul at key[%d,%d] and file[%d,%d]. Writing in crypt[%d,%d]\n", ln, col, istart+col, jstart + k, istart + ln, jstart + k);
                         crypt[(istart + ln) * nbytes + (jstart + k)] += r * file[(istart + col) * nbytes + (jstart + k)];
                     }
                 }
             }
         }
-    }
+    }return crypt;
 }
 
 int main(int argc, char const *argv[])
 {
-    ARRAY_TYPE* key = malloc(sizeof(ARRAY_TYPE) * 4);
-    for(int i = 0; i < 4; i++){
-        key[i] = i % 13;
-        printf("%d ", key[i]);
-    }printf("\n");
-    ARRAY_TYPE* file = malloc(sizeof(ARRAY_TYPE) * 16);
-    for(int j = 0; j < 16; j++){
+    int keysz = 128;
+    int filesz = 4*1024;
+    ARRAY_TYPE* key = malloc(sizeof(ARRAY_TYPE) * keysz*keysz);
+    // for(int i = 0; i < keysz*keysz; i++){
+    //     key[i] = i % 13;
+    //     printf("%d ", key[i]);
+    // }printf("\n");
+    ARRAY_TYPE* file = malloc(sizeof(ARRAY_TYPE) * filesz * filesz);
+    for(int j = 0; j < filesz * filesz; j++){
         file[j] = j * 2;
-    }
-    ARRAY_TYPE* crypted = mat_mul(file, key, 4, 2);
-    for(int i = 0; i < 16; i++){
-        printf("%d ", crypted[i]);
-    }printf("\n");
-    ARRAY_TYPE* allez = line_mul(file, key, 4, 2);
-    for(int i = 0; i < 16; i++){
-        printf("%d ", allez[i]);
-    }printf("\n");
+    }clock_t begin, end;
+    double diff;
+    begin = clock();
+    ARRAY_TYPE* crypted = mat_mul(file, key, filesz, keysz);
+    end = clock();
+    diff = (double) (end-begin)/CLOCKS_PER_SEC;
+    printf("Execution time of mat_mul : %f\n", diff);
+    // for(int i = 0; i < filesz*filesz; i++){
+    //     printf("%d ", crypted[i]);
+    // }printf("\n");
+    time_t beg = clock();
+    ARRAY_TYPE* allez = line_mul(file, key, filesz, keysz);
+    time_t finish = clock();
+    double line;
+    line = (double)(finish- beg)/CLOCKS_PER_SEC;
+    printf("Execution time of line_mul : %f\n", line);
+    // for(int i = 0; i < filesz*filesz; i++){
+    //     printf("%d ", allez[i]);
+    // }printf("\n");
     return 0;
 }
