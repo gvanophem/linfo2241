@@ -103,7 +103,9 @@ int connection_handler(int sockfd, int nbytes, ARRAY_TYPE **pages, int npages){
     if((tread = recv(sockfd, &keysz, 4, 0))  == -1) return -1;
     keysz = ntohl(keysz);
     //printf("key size : %d\n", keysz);
-    ARRAY_TYPE key[keysz*keysz];
+    ARRAY_TYPE* key;
+    if(DOPTIM) key = (ARRAY_TYPE*)aligned_alloc(64, keysz*keysz*sizeof(ARRAY_TYPE));
+    else key = (ARRAY_TYPE*)malloc(keysz*keysz*sizeof(ARRAY_TYPE));
     unsigned tot = keysz*keysz * sizeof(ARRAY_TYPE);
     unsigned done = 0;
     while( done < tot){
@@ -115,7 +117,9 @@ int connection_handler(int sockfd, int nbytes, ARRAY_TYPE **pages, int npages){
     // }printf("\n");
     int nr = nbytes/keysz;
     ARRAY_TYPE* file = pages[fileid % npages];
-    ARRAY_TYPE* crypted = aligned_alloc(64, nbytes*nbytes * sizeof(ARRAY_TYPE));
+    ARRAY_TYPE* crypted;
+    if(DOPTIM) crypted = aligned_alloc(64, nbytes*nbytes * sizeof(ARRAY_TYPE));
+    else crypted = malloc(sizeof(ARRAY_TYPE) * nbytes * nbytes);
     if(crypted == NULL) return -1;
 
     if(DOPTIM){
@@ -139,6 +143,7 @@ int connection_handler(int sockfd, int nbytes, ARRAY_TYPE **pages, int npages){
     check = send(sockfd, crypted, nbytes*nbytes * sizeof(ARRAY_TYPE),MSG_NOSIGNAL );
     if(check == -1) return -1;
     free(crypted);
+    free(key);
     return 0;
 }
  
@@ -182,13 +187,15 @@ int main(int argc, char** argv)
  
     int npages = 1000;
     ARRAY_TYPE** pages;
-    pages = (ARRAY_TYPE**)aligned_alloc(64, sizeof(ARRAY_TYPE*) * npages);
+    if(DOPTIM) pages = (ARRAY_TYPE**)aligned_alloc(64, sizeof(ARRAY_TYPE*) * npages);
+    else pages = (ARRAY_TYPE**)malloc(sizeof(ARRAY_TYPE*) * npages);
     if(pages == NULL){
         printf("pages creation failed\n");
         exit(0);
     }
     for(int i = 0; i < npages; i++){
-        pages[i] = aligned_alloc(64, sizeof(ARRAY_TYPE)*nbytes*nbytes);
+        if(DOPTIM) pages[i] = aligned_alloc(64, sizeof(ARRAY_TYPE)*nbytes*nbytes);
+        else pages[i] = malloc(sizeof(ARRAY_TYPE)*nbytes*nbytes);
         if(pages[i] == NULL){
             printf("pages[i] creation failed\n");
             exit(0);
