@@ -11,11 +11,22 @@
 #include <pthread.h>
 #define SA struct sockaddr
 #define ARRAY_TYPE uint32_t
-#define BILLION  1000000000L
+#define BILLION 1000000000
  
 pthread_mutex_t mutex = PTHREAD_MUTEX_INITIALIZER;
  
-clock_t *receive_times;
+int64_t *receive_times; // en ns
+
+int64_t getts(){
+    struct timespec ts;
+    int err = clock_gettime(CLOCK_MONOTONIC, &ts);
+    if(err == -1){
+        printf("getts failed\n");
+        exit(0);
+    }
+    int64_t tns = ts.tv_sec*1000000000 + ts.tv_nsec;
+    return tns;
+}
  
 typedef struct args{
     struct sockaddr_in server_addr;
@@ -26,7 +37,7 @@ typedef struct args{
     char* port;
     int npages;
     int keysz;
-    int t;
+    int *t;
 }args_t;
  
 typedef struct {
@@ -193,7 +204,9 @@ void* rcv(void* r) {
     int npages = arguments->npages;
     int keysz = arguments->keysz;
     int nbytes = arguments->size;
-    int t = arguments->t;
+    int *t = arguments->t;
+    int rate = arguments->rate;
+    int max_time = arguments->max_time;
  
     int ret;
     int sockfd;
@@ -207,7 +220,7 @@ void* rcv(void* r) {
     unsigned fileindex = htonl(rand() % npages);
     ret = send(sockfd, &fileindex, 4, 0);
     //Send key size
-    printf("key size : %d\n", keysz);
+    //printf("key size : %d\n", keysz);
     int revkey = htonl(keysz);
     ret = send(sockfd, &revkey, 4, 0);
     //Send key
@@ -218,25 +231,16 @@ void* rcv(void* r) {
         int random = rand();
         key[i] = (ARRAY_TYPE)modulo(random, 100000);
         //printf("%d ", key[i]);
-    }printf("\n");
+    }//printf("\n");
     ret = send(sockfd, key, sizeof(ARRAY_TYPE) * keysz*keysz, 0);
     unsigned char error;
     recv(sockfd, &error, 1, 0);
-    printf("error code : %d\n", error);
+    //printf("error code : %d\n", error);
     unsigned filesz;
     recv(sockfd, &filesz, 4, 0);
     filesz = ntohl(filesz);
-    printf("file size : %d\n", (int)(filesz/sizeof(ARRAY_TYPE)));
+    //printf("file size : %d\n", (int)(filesz/sizeof(ARRAY_TYPE)));
     if (filesz > 0) {
-        // long int left = filesz;
-        // char buffer[65536];
-        // while (left > 0) {
-        //     unsigned b = left;
-        //     if (b > 65536) b = 65536;
-        //     left -= recv(sockfd, &buffer, b, 0);
-        // }for(int i = 0; i < filesz/sizeof(ARRAY_TYPE); i++){
-        //     printf("%d ", (ARRAY_TYPE)buffer[i*4]);
-        // }printf("\n");
         ARRAY_TYPE buffer[filesz/sizeof(ARRAY_TYPE)];
         unsigned tot = filesz;
         unsigned done = 0;
@@ -245,12 +249,10 @@ void* rcv(void* r) {
             if((tread = recv(sockfd, buffer, tot-done, 0)) == -1) return NULL;
             done+= tread;
         }
-        // for(int i = 0; i < filesz/sizeof(ARRAY_TYPE); i++){
-        //     printf("%d ", (ARRAY_TYPE)buffer[i]);
-        // }printf("\n");
     }
-    printf("reception done...\n");
-    receive_times[t] = clock();
+    printf("reception done for the %dth time\n", *t);
+    printf("index : %d\n", ((int)(*t))%(max_time*rate));
+    receive_times[((int)(*t))%(max_time*rate)] = getts();
     close(sockfd);
 }
  
@@ -310,42 +312,29 @@ int main(int argc, char** argv)
     arguments->port = port;
     arguments->npages = npages;
     arguments->keysz = size;
- 
+    arguments->t = malloc(sizeof(int));
     
-    struct timespec *start = malloc(sizeof(struct timespec));
-    clock_gettime(CLOCK_REALTIME, start);
-    printf("time : %d\n", start->tv_sec);
-    double diffrate = (double)(1000000000 / rate);
-    double next = 0;
-    int i = 0;
-    long unsigned * sent_times = malloc(sizeof(clock_t) * rate * max_time);
+    int64_t * sent_times = malloc(sizeof(int64_t) * rate * max_time);
     if(sent_times == NULL) return -1;
-    receive_times = malloc(sizeof(long unsigned) * rate * max_time);
-    struct timespec *curr = malloc(sizeof(struct timespec));
-    clock_gettime(CLOCK_REALTIME, curr);
-    
-    while (( curr->tv_sec - start->tv_sec ) + (double)( curr->tv_nsec - start->tv_nsec ) / (double)BILLION < max_time) {
-        double accum;
-        accum = ( curr->tv_sec - start->tv_sec ) + ((double)( curr->tv_nsec - start->tv_nsec ) / (double)BILLION);
-        printf( "%lf\n", accum );
+    receive_times = malloc(sizeof(int64_t) * rate * max_time);
+    int64_t diffrate = 1000000000 / rate;
+    int64_t start = getts();
+    int64_t next = 0;
+    int i = 0;
+    while (getts() - start < (long unsigned)1000000000 * max_time) {
         next += diffrate;
-        printf("diffrate : %lf, curr : %lf, next : %lf\n",diffrate, accum, next);
-        while ((curr->tv_sec + ((double)curr->tv_nsec/((double)BILLION))) < next) {
-            printf("boucle\n");
-            clock_gettime(CLOCK_REALTIME, curr);
-            //printf("time sleeping : %f\n", (next - clock_gettime(CLOCK_REALTIME, start))/CLOCKS_PER_SEC);
-            usleep((next - (curr->tv_sec + (double)curr->tv_nsec/(double)BILLION))*1000000);
+        if(i == 100) break;
+        while ((int)(getts() - next) < 0) {
+            usleep((int)(next - getts()) / 1000);
         }
-        // sent_times[i] = curr->tv_sec; sent_times trop petit
-        arguments->t = i;
         pthread_t thread;
-        //pthread_create( &thread, NULL, rcv, (void*)arguments);
-        //pthread_join(thread, NULL);
+        arguments->t = realloc(arguments->t, sizeof(int));
+        pthread_mutex_lock(&mutex);
+        int mine = i;
         i++;
-        clock_gettime(CLOCK_REALTIME, curr);
+        *(arguments->t) = mine;
+        pthread_mutex_unlock(&mutex);
+        sent_times[i%(rate*max_time)] = getts();
+        pthread_create( &thread, NULL, rcv, (void*)arguments);        
     }
- 
-    // pthread_t thread;
-    // pthread_create( &thread, NULL, rcv, (void*)arguments);
-    // pthread_join(thread, NULL);
 }
