@@ -251,7 +251,6 @@ void* rcv(void* r) {
         }
     }
     printf("reception done for the %dth time\n", *t);
-    printf("index : %d\n", ((int)(*t))%(max_time*rate));
     receive_times[((int)(*t))%(max_time*rate)] = getts();
     close(sockfd);
 }
@@ -335,6 +334,7 @@ int main(int argc, char** argv)
         *(arguments->t) = mine;
         pthread_mutex_unlock(&mutex);
         sent_times[i%(rate*max_time)] = getts();
-        pthread_create( &thread, NULL, rcv, (void*)arguments);        
+        pthread_create( &thread, NULL, rcv, (void*)arguments); 
+        pthread_join(thread, NULL);       
     }
 }
